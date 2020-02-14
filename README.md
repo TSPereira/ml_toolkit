@@ -1,2 +1,0 @@
-# support
-Support general code
