@@ -1,0 +1,309 @@
+,concelho,population_2015,density_2015
+0,Lisboa,504471,5042.0
+1,Sintra,382521,1198.3
+2,Vila Nova de Gaia,301172,1787.7
+3,Porto,214579,5180.5
+4,Cascais,210361,2159.7
+5,Loures,205870,1231.0
+6,Braga,181502,989.7
+7,Matosinhos,173451,2778.8
+8,Amadora,176644,7426.8
+9,Almada,169689,2423.8
+10,Oeiras,173339,3777.8
+11,Gondomar,166338,1261.4
+12,Seixal,164625,1724.7
+13,Guimarães,154920,642.9
+14,Odivelas,154462,5819.2
+15,Coimbra,134578,421.3
+16,Santa Maria da Feira,139478,646.1
+17,Vila Franca de Xira,140614,441.9
+18,Maia,135678,1634.8
+19,Vila Nova de Famalicão,133028,659.9
+20,Leiria,125721,222.5
+21,Setúbal,117780,511.4
+22,Barcelos,118605,313.0
+23,Funchal,105562,1386.0
+24,Viseu,98164,193.6
+25,Valongo,95188,1267.1
+26,Viana do Castelo,86136,270.0
+27,Paredes,86554,552.2
+28,Vila do Conde,79399,532.8
+29,Torres Vedras,78989,194.0
+30,Barreiro,76433,2100.3
+31,Aveiro,76882,389.1
+32,Mafra,81961,281.0
+33,Penafiel,70759,333.4
+34,Santo Tirso,69557,509.2
+35,Loulé,69453,90.9
+36,Ponta Delgada,68403,293.6
+37,Oliveira de Azeméis,66978,415.7
+38,Moita,65104,1178.1
+39,Faro,61019,301.2
+40,Póvoa de Varzim,62522,760.6
+41,Palmela,64110,137.8
+42,Santarém,58688,106.2
+43,Figueira da Foz,60415,159.4
+44,Felgueiras,57246,494.6
+45,Alcobaça,55063,134.9
+46,Évora,53654,41.0
+47,Paços de Ferreira,57024,803.2
+48,Amarante,54432,180.6
+49,Castelo Branco,53507,37.2
+50,Portimão,55439,304.5
+51,Ovar,54607,369.7
+52,Pombal,53604,85.6
+53,Marco de Canaveses,52480,259.9
+54,Vila Real,50376,133.0
+55,Covilhã,48741,87.7
+56,Caldas da Rainha,51542,201.6
+57,Montijo,55153,158.2
+58,Fafe,49351,225.3
+59,Sesimbra,50734,259.2
+60,Vila Verde,47428,207.4
+61,Águeda,46825,139.7
+62,Lousada,47075,490.0
+63,Ourém,45037,108.1
+64,Olhão,45253,345.8
+65,Ponte de Lima,42512,132.7
+66,Alenquer,43136,141.8
+67,Santa Cruz,43925,538.9
+68,Guarda,40237,56.5
+69,Chaves,40138,67.9
+70,Albufeira,40357,286.9
+71,Tomar,38183,108.7
+72,Abrantes,36701,51.4
+73,Trofa,38264,531.3
+74,Marinha Grande,38613,206.2
+75,Ílhavo,38367,522.2
+76,Silves,36547,53.7
+77,Torres Novas,35587,131.8
+78,Cantanhede,35878,91.8
+79,Beja,34148,29.8
+80,Câmara de Lobos,34246,656.5
+81,Angra do Heroísmo,34586,144.7
+82,Bragança,34033,29.0
+83,Esposende,34040,356.8
+84,Ribeira Grande,32720,181.6
+85,Espinho,29708,1410.9
+86,Lagos,30778,144.5
+87,Santiago do Cacém,29183,27.5
+88,Fundão,27714,39.6
+89,Anadia,27993,129.2
+90,Benavente,29874,57.3
+91,Tondela,27701,74.6
+92,Peniche,26994,348.1
+93,Estarreja,26338,243.5
+94,Lamego,25480,154.0
+95,Montemor-o-Velho,25678,112.1
+96,Tavira,25415,41.9
+97,Odemira,25135,14.6
+98,Lourinhã,25629,174.1
+99,Albergaria-a-Velha,24476,154.1
+100,Portalegre,23175,51.8
+101,Seia,23329,53.5
+102,Cartaxo,24020,151.9
+103,Porto de Mós,23792,90.9
+104,Mirandela,22419,34.0
+105,Vizela,23802,963.7
+106,Almeirim,23092,104.0
+107,Elvas,21571,34.2
+108,Oliveira do Bairro,23661,271.0
+109,Lagoa (Algarve),22787,258.2
+110,Vale de Cambra,21911,148.7
+111,Vagos,22905,138.9
+112,Arcos de Valdevez,21621,48.3
+113,Arouca,21392,65.0
+114,Salvaterra de Magos,21755,89.2
+115,Póvoa de Lanhoso,21690,161.1
+116,Machico,20654,302.6
+117,Azambuja,22184,84.5
+118,São João da Madeira,21449,2700.4
+119,Rio Maior,20704,75.9
+120,Praia da Vitória,21555,133.7
+121,Oliveira do Hospital,19984,85.2
+122,Baião,19488,111.7
+123,Mealhada,20160,182.2
+124,Cinfães,19122,79.9
+125,Entroncamento,20568,1498.2
+126,Celorico de Basto,19485,107.6
+127,Coruche,18587,16.7
+128,Mangualde,19241,87.8
+129,Soure,18027,68.0
+130,Monção,18467,87.4
+131,Vila Real de Santo António,19077,311.5
+132,Amares,18300,223.3
+133,Lousã,17231,124.5
+134,Alcochete,18807,146.5
+135,Montemor-o-Novo,16323,13.2
+136,Peso da Régua,16225,171.0
+137,Condeixa-a-Nova,17409,125.5
+138,Valpaços,15620,28.5
+139,São Pedro do Sul,16065,46.0
+140,Castelo de Paiva,15980,139.0
+141,Ponte de Sor,15709,18.7
+142,Cabeceiras de Basto,16168,66.9
+143,Caminha,16104,118.0
+144,Sertã,15165,33.9
+145,Batalha,15842,153.2
+146,Macedo de Cavaleiros,14882,21.3
+147,Serpa,15005,13.6
+148,Castro Daire,14552,38.4
+149,Penacova,14399,66.4
+150,Moura,14241,14.9
+151,Nazaré,14422,175.0
+152,Horta,14824,85.7
+153,Grândola,14708,17.8
+154,Lagoa (São Miguel),14681,322.0
+155,Estremoz,13306,25.9
+156,Sines,13678,67.3
+157,Cadaval,13834,79.1
+158,Valença,13554,115.7
+159,Gouveia,13114,43.6
+160,Nelas,13472,107.2
+161,Alcanena,13199,103.7
+162,Arruda dos Vinhos,14475,185.7
+163,Ribeira Brava,12555,191.8
+164,Bombarral,12668,138.8
+165,Vila Pouca de Aguiar,12430,28.4
+166,Ansião,12574,71.4
+167,Miranda do Corvo,12861,101.8
+168,Alcácer do Sal,12170,8.1
+169,Vieira do Minho,12292,56.8
+170,Sabugal,11489,14.0
+171,Mira,12110,97.6
+172,Sátão,11949,59.2
+173,Sever do Vouga,11852,91.3
+174,Arganil,11432,34.3
+175,Tábua,11726,58.7
+176,Ponte da Barca,11516,63.2
+177,Alijó,11093,37.3
+178,Vendas Novas,11534,51.9
+179,Óbidos,11612,82.0
+180,Santa Comba Dão,10905,97.4
+181,Calheta (Madeira),11052,99.1
+182,Resende,10592,85.9
+183,Vila Franca do Campo,11300,144.9
+184,Reguengos de Monsaraz,10363,22.3
+185,São Brás de Alportel,10575,69.0
+186,Murtosa,10407,142.4
+187,Vouzela,10037,51.8
+188,Montalegre,9541,11.8
+189,Oliveira de Frades,10060,69.2
+190,Moimenta da Beira,9872,44.9
+191,Sobral de Monte Agraço,10230,196.3
+192,Chamusca,9639,12.9
+193,Trancoso,9345,25.8
+194,Carregal do Sal,9580,82.0
+195,Idanha-a-Nova,8712,6.2
+196,Pinhel,8983,18.5
+197,Mortágua,9184,36.6
+198,Mogadouro,8815,11.6
+199,Aljustrel,8589,18.7
+200,Vila Nova de Cerveira,8969,82.7
+201,Melgaço,8558,35.9
+202,Paredes de Coura,8833,63.9
+203,Vinhais,8289,11.9
+204,Ponta do Sol,8619,186.5
+205,Ferreira do Zêzere,8191,43.0
+206,Torre de Moncorvo,7975,15.0
+207,Campo Maior,8214,33.2
+208,Vila Viçosa,7987,41.0
+209,Proença-a-Nova,7741,19.6
+210,Ferreira do Alentejo,7976,12.3
+211,Tarouca,7784,77.8
+212,Penalva do Castelo,7493,55.8
+213,São João da Pesqueira,7370,27.7
+214,Santana,6992,73.2
+215,Alpiarça,7289,76.4
+216,Celorico da Beira,7246,29.3
+217,Mondim de Basto,7160,41.6
+218,Miranda do Douro,7138,14.7
+219,Nisa,6649,11.5
+220,Almodôvar,6965,9.0
+221,Arraiolos,7107,10.4
+222,Santa Marta de Penaguião,6848,98.8
+223,Mação,6698,16.7
+224,Borba,7034,48.4
+225,Vila Nova da Barquinha,7286,147.1
+226,Vila Nova de Foz Côa,6792,17.1
+227,Alvaiázere,6895,43.0
+228,Vila Nova de Poiares,7055,83.5
+229,Castro Verde,7145,12.5
+230,Mértola,6534,5.1
+231,Terras de Bouro,6655,24.0
+232,Almeida,6323,12.2
+233,Redondo,6649,18.0
+234,Belmonte,6531,55.0
+235,Castro Marim,6450,21.4
+236,Vila Flor,6242,23.5
+237,Ribeira de Pena,6222,28.6
+238,Portel,6104,10.2
+239,Carrazeda de Ansiães,5885,21.1
+240,Sabrosa,6024,38.4
+241,Tabuaço,6138,45.9
+242,Povoação,6132,57.6
+243,Armamar,5939,50.7
+244,Figueira de Castelo Rodrigo,5918,11.6
+245,Figueiró dos Vinhos,5811,33.5
+246,Madalena,5958,40.5
+247,Monchique,5476,13.9
+248,Penela,5612,41.6
+249,Murça,5633,29.7
+250,Vidigueira,5654,17.9
+251,Aljezur,5615,17.4
+252,Alandroal,5357,9.9
+253,Boticas,5309,16.5
+254,Viana do Alentejo,5315,13.5
+255,São Vicente,5216,66.2
+256,Oleiros,5270,11.2
+257,Penamacor,5116,9.1
+258,Sernancelhe,5484,24.0
+259,Vila do Porto,5652,58.3
+260,Porto Santo,5186,120.6
+261,Aguiar da Beira,5040,24.4
+262,Golegã,5576,66.1
+263,Velas,5244,44.7
+264,Ourique,4912,7.4
+265,Vila do Bispo,5206,29.1
+266,Meda,4802,16.8
+267,Vila Nova de Paiva,4909,28.0
+268,Alfândega da Fé,4688,14.6
+269,Sousel,4674,16.7
+270,Fornos de Algodres,4796,36.5
+271,Mora,4484,10.1
+272,Nordeste,4977,49.0
+273,Cuba,4757,27.6
+274,Lajes do Pico,4622,29.8
+275,Vimioso,4253,8.8
+276,Avis,4387,7.2
+277,Pampilhosa da Serra,4143,10.4
+278,Mesão Frio,4101,153.9
+279,Santa Cruz da Graciosa,4339,71.5
+280,Góis,3985,15.1
+281,Gavião,3645,12.4
+282,Constância,3984,49.6
+283,Sardoal,3821,41.5
+284,Pedrógão Grande,3562,27.7
+285,Freixo de Espada à Cinta,3492,14.3
+286,Calheta (São Jorge),3312,26.2
+287,Crato,3378,8.5
+288,Alter do Chão,3308,9.1
+289,Vila Velha de Ródão,3282,9.9
+290,Marvão,3230,20.9
+291,Vila de Rei,3392,17.7
+292,Manteigas,3199,26.2
+293,Fronteira,3088,12.4
+294,Castelo de Vide,3116,11.8
+295,São Roque do Pico,3303,23.2
+296,Monforte,3103,7.4
+297,Castanheira de Pêra,2801,41.9
+298,Arronches,2988,9.5
+299,Penedono,2736,20.5
+300,Alcoutim,2482,4.3
+301,Porto Moniz,2417,29.1
+302,Mourão,2529,9.1
+303,Alvito,2485,9.4
+304,Santa Cruz das Flores,2196,31.0
+305,Barrancos,1717,10.2
+306,Lajes das Flores,1503,21.5
+307,Corvo,459,26.8
