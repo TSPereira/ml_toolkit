@@ -3,7 +3,8 @@ from decorator import decorator
 from contextlib import contextmanager
 
 
-def print_progress_bar(iteration, total, prefix='', suffix='', level=1, verbose=0):
+def print_progress_bar(iteration: int, total: int, prefix: str = '', suffix: str = '', level: int = 1,
+                       verbose: int = 0) -> None:
     """Prints a progress bar
 
     :param int iteration: Current iteration number
@@ -46,7 +47,7 @@ def print_progress_bar(iteration, total, prefix='', suffix='', level=1, verbose=
     return
 
 
-def printv(str_, verbose=1, level=1, ident=0, title=False, **kwargs):
+def printv(str_: str, verbose: int = 1, level: int = 1, ident: int = 0, title: bool = False, **kwargs) -> None:
     """Prints to console dependent on verbosity level
 
     :param string str_: string to print
