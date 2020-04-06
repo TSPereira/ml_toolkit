@@ -35,9 +35,11 @@ standardpackage
 |
 |--utils
 |    datetime_utils
+|    io_utils
 |    log_utils
 |    os_utils
 |    other_utils
+|    pdf_utils
 |    text_utils
 |  
 ```
