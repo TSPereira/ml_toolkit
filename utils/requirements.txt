@@ -1,0 +1,4 @@
+pandas==1.0.3
+numpy==1.18.1
+decorator==4.4.2
+pdfminer.six==20181108

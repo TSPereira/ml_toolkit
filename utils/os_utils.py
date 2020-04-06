@@ -1,7 +1,6 @@
 import os
 import shutil
 import math
-from collections.abc import Iterable
 from uuid import UUID, uuid4
 from typing import Tuple, Iterable
 
