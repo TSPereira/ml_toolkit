@@ -1,6 +1,77 @@
+import sys
 from time import time
 from decorator import decorator
-from contextlib import contextmanager
+from contextlib import ContextDecorator, redirect_stdout
+
+from .os_utils import check_types
+
+
+class timeit(ContextDecorator):
+    """
+    Decorator class that also works as context manager (with statements) to time functions or blocks of code
+    It is also possible to redirect the output of the timings to a file instead of sys.stdout
+
+    :param str|None desc: Descriptive of the function or code block
+    :param int verbose: parameter to control whether to print or not.
+    :param int verbose_level: level from which to print messages. verbose needs to be higher than this value for
+    anything to be printed
+    :param stdout: stream to print to. Can be any stream or a path to a file
+
+    Examples:
+    >>>@timeit()
+    >>>def func(a, b)
+    >>>     ...
+
+    >>> with timeit():
+    >>>     ...
+
+    >>>from functools import partial
+    >>>timeit = partial(timeit, verbose=1, verbose_level=1, stdout='log.txt')
+    >>>
+    >>>@timeit()
+    >>>def func(a, b)
+    >>>     ...
+    """
+
+    @check_types(verbose=int, desc=(str, type(None)))
+    def __init__(self, desc: str = None, verbose: int = 0, verbose_level: int = 1, stdout=sys.stdout) -> None:
+        self.verbose = verbose
+        self.verbose_level = verbose_level
+        self.desc = desc
+        self.stdout = stdout
+
+    def __enter__(self):
+        self.start_time = time()
+
+    def __exit__(self, *exc):
+        if self.verbose >= self.verbose_level:
+            # if regular stdout just print
+            # elif is already a stream (any object with write method), redirect to it
+            # elif is str, open a file with str name and write to file
+            if self.stdout == sys.stdout:
+                self._print()
+
+            elif hasattr(self.stdout, 'write'):
+                with redirect_stdout(self.stdout):
+                    self._print()
+
+            elif isinstance(self.stdout, str):
+                with open(self.stdout, 'w') as _stdout:
+                    with redirect_stdout(_stdout):
+                        self._print()
+
+    def __call__(self, *args, **kwargs):
+        # If used as a decorator, retrieve the function name
+        func = super().__call__(*args, **kwargs)
+        self._fname = func.__qualname__
+        return func
+
+    def _print(self):
+        # find if used as decorator or contextmanager and assign prefix and description accordingly
+        is_func = hasattr(self, '_fname')
+        _prefix = 'func' if is_func else 'block'
+        _desc = self.desc if self.desc is not None else (self._fname if is_func else '')
+        print(f'[{_prefix}] >>> {_desc} took: {time() - self.start_time:2.4f}s')
 
 
 def print_progress_bar(iteration: int, total: int, prefix: str = '', suffix: str = '', level: int = 1,
@@ -82,68 +153,5 @@ def printv(str_: str, verbose: int = 1, level: int = 1, ident: int = 0, title: b
         if title:
             str_ = '\n' + str_.capitalize() + '\n' + '-' * len(str_) + '\n'
         print(2 * ident * ' ' + str_, **kwargs)
-
-    return
-
-
-def timeit(verbose: bool = True):
-    """Decorator to time a function
-
-    :param bool verbose: parameter to control whether to print the timing
-    :return: original function result
-
-    Example:
-    >>>@timeit(True)
-    >>>def custom_sum(a, b):
-    >>>     return a+b
-    >>>
-    >>>func(1,2)
-    >>>func:custom_sum took: 0.0000s
-    >>>3
-
-    TODO: add option to change print to a log file
-    """
-
-    @decorator
-    def wrap(f, *args, **kwargs):
-        ts = time()
-        result = f(*args, **kwargs)
-        if verbose:
-            print(f'func:{f.__name__} took: {time()-ts:2.4f}s')
-        return result
-    return wrap
-
-
-@contextmanager
-def catchtime(verbose: bool = True, desc: str = '') -> None:
-    """Context Manager to time blocks of code. Everything within the with statement will be included in the timing
-
-    :param bool verbose: parameter to control whether to print the timing
-    :param str description: Descriptive of the code block
-    :return:
-
-    Example:
-    >>>with catchtime(True):
-    >>>     print(sum((2, 2)))
-    >>>
-    >>>sum((1, 2))
-    >>>4
-    >>>block: took: 0.0000s
-    >>>3
-
-    >>>with catchtime(True, 'Sum 2+2'):
-    >>>     print(sum((2, 2)))
-    >>>
-    >>>sum((1, 2))
-    >>>4
-    >>>block:Sum 2+2 took: 0.0000s
-    >>>3
-    """
-
-    start = time()
-    yield
-
-    if verbose:
-        print(f'block:{description} took: {time()-start:2.4f}s')
 
     return
