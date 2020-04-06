@@ -41,5 +41,7 @@ standardpackage
 |    other_utils
 |    pdf_utils
 |    text_utils
-|  
+| 
+|--webtools
+|    url_parsers
 ```
