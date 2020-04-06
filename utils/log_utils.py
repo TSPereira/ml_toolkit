@@ -115,7 +115,7 @@ def timeit(verbose: bool = True):
 
 
 @contextmanager
-def catchtime(verbose: bool = True, description: str = '') -> None:
+def catchtime(verbose: bool = True, desc: str = '') -> None:
     """Context Manager to time blocks of code. Everything within the with statement will be included in the timing
 
     :param bool verbose: parameter to control whether to print the timing

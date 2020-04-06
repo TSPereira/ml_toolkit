@@ -3,7 +3,7 @@ from typing import Any, Tuple
 import numpy as np
 from pandas import DataFrame, Series
 
-from utils.os_utils import check_options
+from .os_utils import check_options
 
 
 def fill_nulls_w_own_distribution(column: Series) -> Series:
