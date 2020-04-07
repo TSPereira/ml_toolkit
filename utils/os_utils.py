@@ -144,7 +144,8 @@ def version_control(path: str, bump: bool, bump_prod: bool) -> Tuple[str, str]:
     if bump | bump_prod:
         _current_version = bump_version(path, production_version=bump_prod)
     else:
-        _current_version = 'v' + str(max([float(f[1:]) for f in os.listdir(path)], default=0.1))
+        _versions = [f for f in os.listdir(path) if (f.startswith('v') and f[-1].isdigit())]
+        _current_version = 'v' + str(max([float(version[1:]) for version in _versions], default=0.1))
 
     _version_path = create_version_folder(_current_version, path)
     return _version_path, _current_version
