@@ -34,13 +34,14 @@ standardpackage
 |  README.md
 |
 |--utils
-|    datetime_utils
-|    io_utils
-|    log_utils
-|    os_utils
-|    other_utils
-|    pdf_utils
-|    text_utils
+|    datetime_utl
+|    io_utl
+|    generic_utl
+|    log_utl
+|    os_utl
+|    other_utl
+|    pdf_utl
+|    text_utl
 | 
 |--webtools
 |    url_parsers

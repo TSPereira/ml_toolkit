@@ -1,9 +1,8 @@
 import sys
 from time import time
-from decorator import decorator
 from contextlib import ContextDecorator, redirect_stdout
 
-from .os_utils import check_types
+from .os_utl import check_types
 
 
 class timeit(ContextDecorator):
@@ -76,6 +75,7 @@ class timeit(ContextDecorator):
 
 def print_progress_bar(iteration: int, total: int, prefix: str = '', suffix: str = '', level: int = 1,
                        verbose: int = 0) -> None:
+    # noinspection PyUnresolvedReferences
     """Prints a progress bar
 
     :param int iteration: Current iteration number
@@ -119,6 +119,7 @@ def print_progress_bar(iteration: int, total: int, prefix: str = '', suffix: str
 
 
 def printv(str_: str, verbose: int = 1, level: int = 1, ident: int = 0, title: bool = False, **kwargs) -> None:
+    # noinspection PyUnresolvedReferences
     """Prints to console dependent on verbosity level
 
     :param string str_: string to print

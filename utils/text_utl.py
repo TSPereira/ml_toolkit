@@ -4,7 +4,7 @@ from typing import Union, Iterable, Any
 
 from pandas import DataFrame, Series
 
-from .os_utils import check_types, check_options
+from .os_utl import check_types, check_options
 
 
 @check_types(x=(Series, DataFrame), list_substring=Iterable)

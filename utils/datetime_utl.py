@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 
-from .os_utils import check_options
+from .os_utl import check_options
 
 
 def add_date_features(df: pd.Series, column_name: str, month_names: bool = False, weekday_names: bool = True) -> None:
