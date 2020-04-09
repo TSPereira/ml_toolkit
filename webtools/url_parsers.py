@@ -2,7 +2,7 @@ from html.parser import HTMLParser
 from urllib.request import urlopen, Request
 from bs4 import BeautifulSoup
 
-from ..utils.log_utils import printv
+from ..utils.log_utl import printv
 
 
 class LinkParser(HTMLParser):
