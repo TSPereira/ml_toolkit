@@ -4,7 +4,6 @@ from typing import Iterable
 import warnings
 
 import numpy as np
-import pandas as pd
 from pandas import DataFrame, Series
 import scipy as sp
 import scipy.sparse
@@ -17,8 +16,10 @@ from sklearn.feature_extraction import FeatureHasher
 from sklearn.exceptions import NotFittedError
 from sklearn.compose import ColumnTransformer
 
-from ..utils.os_utl import check_options, check_types
-from ..utils.generic_utl import duplicated, std_sparse
+# from ..utils.os_utl import check_options, check_types
+# from ..utils.generic_utl import duplicated, std_sparse
+from utils.os_utl import check_options, check_types
+from utils.generic_utl import duplicated, std_sparse
 NoneType = type(None)
 
 
@@ -144,12 +145,6 @@ class CategoricalEncoder:
 
         return np.asarray(fnames)
 
-OneHotEncoder(sparse=True)
-LabelBinarizer(sparse_output=False)
-
-MultiLabelBinarizer(sparse_output=False)
-CountVectorizer()
-
 
 class BaseEncoderConstructor:
     __encoders__ = {'continuous': __CONT_ENCODERS__,
@@ -207,20 +202,57 @@ class BaseEncoderConstructor:
         self.__handle_missing__ = flag
         self._set_encoders()  # reset encoders
 
-    @check_types(enc_params=(dict, NoneType))
-    def set_encoder_params(self, enc_params):
-        enc_params = enc_params or {}
-        for enc_type, params in self.__default_enc_params__.items():
-            assert isinstance(params, dict), 'Parameters for each "feature_type" must be passed as a dictionary.'
-            self._enc_params[enc_type] = dict(ChainMap(enc_params.get(enc_type) or {},
-                                                       self._enc_params.get(enc_type) or {},
-                                                       self.__default_enc_params__[enc_type]))
-        self._set_encoders()
-
     def _set_encoders(self):
-        # for encoder in set(self.__encoders__).difference(['multi_categorical']):
-        for encoder in self.__encoders__:
-            self._set_single_encoder(encoder)
+        for enc_type in self.__encoders__:
+            enc_name = self._chosen[enc_type]
+
+            steps = list()
+            # First Step add or not Imputer
+            if self._handle_missing:
+                steps.append(('Imputer', self._set_imputer(enc_type)))
+
+            # Second Step add correct encoder
+            if enc_type == 'categorical':
+                steps.append((enc_name, CategoricalEncoder(self._chosen['categorical'],
+                                                           self._chosen['multi_categorical'],
+                                                           self._enc_params,
+                                                           sparse=(not self._std_categoricals))))
+            else:
+                encoder = self.__encoders__[enc_type][enc_name]
+                steps.append((enc_name, encoder(**self._enc_params[enc_type])))
+
+            # Third Step - Adjustments to specific encoders
+            # If ordinal encoder no need for imputer (worse since it can't take always string or int), so remove it and
+            # add a continuous encoder to set the ordinal to same feature space as the continuous
+            cont_enc_name = self._chosen['continuous']
+            if enc_type == 'ordinal':
+                steps.pop(0)
+                steps.append((cont_enc_name,
+                              self.__encoders__['continuous'][cont_enc_name](**self._enc_params['continuous'])))
+
+            # if categorical check if should standardize it and if so, how.
+            if enc_type in ('categorical', 'multi_categorical'):
+                if self._std_categoricals:
+                    if cont_enc_name != 'StandardScaler':
+                        self.__compute_weights__ = True
+                    else:
+                        steps.append(('Standardizer',
+                                      self.__encoders__['continuous'][cont_enc_name](**self._enc_params['continuous'])))
+
+            # Finally, cleanup
+            # If only one step return the single encoder else return the pipeline
+            self._encoders[enc_type] = steps[0][1] if len(steps) == 1 else Pipeline(steps)
+
+    @staticmethod
+    def _set_imputer(enc_type):
+        # todo add_indicator flag
+        if enc_type == 'continuous':
+            imputer = SimpleImputer(strategy='median')
+        else:
+            # elif enc_type in ('categorical', 'multi_categorical', 'ordinal'):
+            imputer = SimpleImputer(strategy='constant', fill_value='unknown')
+
+        return imputer
 
     @check_types(params=(NoneType, dict))
     def set_encoder(self, encoder, feature_type, params=None):
@@ -234,56 +266,15 @@ class BaseEncoderConstructor:
             self._set_encoders()
         self.__chosen__[feature_type] = encoder
 
-    def _set_single_encoder(self, enc_type):
-        enc_name = self._chosen[enc_type]
-
-        steps = list()
-        # First Step add or not Imputer
-        if self._handle_missing:
-            steps.append(('Imputer', self._set_imputer(enc_type)))
-
-        # Second Step add correct encoder
-        if enc_type == 'categorical':
-            steps.append((enc_name, CategoricalEncoder(self._chosen['categorical'],
-                                                       self._chosen['multi_categorical'],
-                                                       self._enc_params,
-                                                       sparse=(not self._std_categoricals))))
-        else:
-            encoder = self.__encoders__[enc_type][enc_name]
-            steps.append((enc_name, encoder(**self._enc_params[enc_type])))
-
-        # Third Step - Adjustments to specific encoders
-        # If ordinal encoder no need for imputer (worse since it can't take always string or int), so remove it and
-        # add a continuous encoder to set the ordinal to same feature space as the continuous
-        cont_enc_name = self._chosen['continuous']
-        if enc_type == 'ordinal':
-            steps.pop(0)
-            steps.append((cont_enc_name,
-                          self.__encoders__['continuous'][cont_enc_name](**self._enc_params['continuous'])))
-
-        # if categorical check if should standardize it and if so, how.
-        if enc_type in ('categorical', 'multi_categorical'):
-            if self._std_categoricals:
-                if cont_enc_name != 'StandardScaler':
-                    self.__compute_weights__ = True
-                else:
-                    steps.append(('Standardizer',
-                                  self.__encoders__['continuous'][cont_enc_name](**self._enc_params['continuous'])))
-
-        # If only one step return the single encoder else return the pipeline
-        self._encoders[enc_type] = steps[0][1] if len(steps) == 1 else Pipeline(steps)
-
-    @staticmethod
-    def _set_imputer(enc_type):
-        # todo add_indicator flag
-        if enc_type == 'continuous':
-            imputer = SimpleImputer(strategy='median')
-        else:
-            # elif enc_type in ('categorical', 'multi_categorical', 'ordinal'):
-            fill_value = 'unknown' if enc_type != 'multi_categorical' else ['unknown']
-            imputer = SimpleImputer(strategy='constant', fill_value=fill_value)
-
-        return imputer
+    @check_types(enc_params=(dict, NoneType))
+    def set_encoder_params(self, enc_params):
+        enc_params = enc_params or {}
+        for enc_type, params in self.__default_enc_params__.items():
+            assert isinstance(params, dict), 'Parameters for each "feature_type" must be passed as a dictionary.'
+            self._enc_params[enc_type] = dict(ChainMap(enc_params.get(enc_type) or {},
+                                                       self._enc_params.get(enc_type) or {},
+                                                       self.__default_enc_params__[enc_type]))
+        self._set_encoders()
 
 
 class Encoder(BaseEncoderConstructor):
@@ -329,13 +320,13 @@ class Encoder(BaseEncoderConstructor):
             if arr.ndim == 1:
                 arr = arr.reshape(-1, 1)
             self.input_features = np.arange(arr.shape[1])
-            arr = pd.DataFrame(arr, columns=self.input_features).infer_objects()
+            arr = pd.DataFrame(arr, columns=list(self.input_features)).infer_objects()
 
         if self._exclude is not None:
             _not_in_features = self._exclude[~np.in1d(self._exclude, self.input_features)]
             if _not_in_features.size > 0:
                 self._exclude = self._exclude[~np.in1d(self._exclude, _not_in_features)]
-                warnings.warn(f'Features/indexes {_not_in_features} in exclusion list do not exist in the input.'
+                warnings.warn(f'Features/indexes {_not_in_features} in exclusion list do not exist in the input. '
                               f'Exclusion list was updated.', stacklevel=2)
 
             self.input_features = self.input_features[~np.in1d(self.input_features, self._exclude)]
@@ -520,16 +511,18 @@ class Encoder(BaseEncoderConstructor):
 
 
 if __name__ == '__main__':
-    from sklearn.datasets import fetch_openml
+    import pandas as pd
     from sklearn.model_selection import train_test_split
 
-    X, y = fetch_openml("titanic", version=1, as_frame=True, return_X_y=True)
-    X.iloc[:, :] = np.where(X.isnull(), np.nan, X)
+    X_, y_ = pd.read_csv('feature_encoding/sick_x.csv', index_col=0), \
+             pd.read_csv('feature_encoding/sick_y.csv', index_col=0, squeeze=True)
+    X_.iloc[:, :] = np.where(X_.isnull(), np.nan, X_)
+    X_.drop(['TBG', 'TBG_measured'], axis=1, inplace=True)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+    X_train, X_test, y_train, y_test = train_test_split(X_, y_, test_size=0.2, random_state=20)
 
-    enc = Encoder(handle_missing=True, return_as='sparse', std_categoricals=True, cont_enc='MinMaxScaler',
-                  weights={'pclass': 3, 'age': 5})
+    enc = Encoder(handle_missing=True, return_as='sparse', std_categoricals=False, cont_enc='StandardScaler',
+                  weights={'pclass': 3, 'age': 5, 'sex': 10})
     exclude = ['name', 'ticket', 'cabin', 'boat', 'home.dest']
     feature_types = {'continuous': [],
                      'categorical': [],

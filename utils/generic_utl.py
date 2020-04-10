@@ -23,7 +23,11 @@ def var_sparse(a: np.ndarray, axis: int = None) -> Union[np.ndarray, float]:
     var = mean(a**2) - mean(a)**2
     """
     a_squared = a.copy()
-    a_squared.data **= 2
+
+    if hasattr(a_squared, 'data') and (not isinstance(a_squared.data, memoryview)):
+        a_squared.data **= 2
+    else:
+        a_squared **= 2
     return a_squared.mean(axis) - np.square(a.mean(axis))
 
 
