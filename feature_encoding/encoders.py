@@ -17,8 +17,8 @@ from sklearn.feature_extraction import FeatureHasher
 from sklearn.exceptions import NotFittedError
 from sklearn.compose import ColumnTransformer
 
-from ..utils.os_utils import check_options, check_types
-from ..utils.generic import duplicated, std_sparse
+from ..utils.os_utl import check_options, check_types
+from ..utils.generic_utl import duplicated, std_sparse
 NoneType = type(None)
 
 
