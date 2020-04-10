@@ -1,14 +1,15 @@
 from itertools import chain
+from functools import partial
 from collections import ChainMap
-from typing import Iterable
+from typing import Iterable, Callable
+from contextlib import suppress
 import warnings
 
 import numpy as np
 from pandas import DataFrame, Series
-import scipy as sp
-import scipy.sparse
+import scipy.sparse as sp_sparse
 from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer, MinMaxScaler, OrdinalEncoder, \
-    StandardScaler, RobustScaler, OneHotEncoder
+    StandardScaler, RobustScaler, OneHotEncoder, FunctionTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import CountVectorizer
@@ -108,9 +109,9 @@ class CategoricalEncoder:
             np.asarray(X).reshape(-1, 1)
 
     def _construct_output(self, X):
-        if self._sparse and not sp.sparse.issparse(X):
-            X = sp.sparse.csr_matrix(X)
-        elif not self._sparse and sp.sparse.issparse(X):
+        if self._sparse and not sp_sparse.issparse(X):
+            X = sp_sparse.csr_matrix(X)
+        elif not self._sparse and sp_sparse.issparse(X):
             X = X.toarray()
         return X
 
@@ -279,14 +280,15 @@ class BaseEncoderConstructor:
 
 class Encoder(BaseEncoderConstructor):
     @check_options(return_as=('sparse', 'dataframe', 'array'))
-    @check_types(weights=(dict, NoneType), return_as=str, verbose=(int, bool))
+    @check_types(weights=(dict, NoneType), return_as=str, verbose=(int, bool), y_transformer=(Callable, NoneType))
     def __init__(self, cont_enc='StandardScaler', cat_enc='OneHotEncoder', multi_cat_enc='MultiLabelBinarizer',
-                 enc_params=None, weights=None, std_categoricals=False, handle_missing=False, return_as='sparse',
-                 n_jobs=1, verbose=0):
+                 enc_params=None, weights=None, std_categoricals=False, handle_missing=False, y_transformer=None,
+                 return_as='sparse',  n_jobs=1, verbose=0):
+
         super().__init__(cont_enc, cat_enc, multi_cat_enc, enc_params, std_categoricals, handle_missing)
         self.encoded_feature_names = None
         self.encoder = None
-        self.encoder_y = None
+        self.encoder_y = self._set_encoder_y(y_transformer)
         self.input_features = None
         self.feature_types = dict()
         self.fitted = False
@@ -300,6 +302,13 @@ class Encoder(BaseEncoderConstructor):
         self._verbose = verbose
         self._weights = None
 
+    def _set_encoder_y(self, func):
+        if func is not None:
+            if 'inverse' in func.__code__.co_varnames:
+                return FunctionTransformer(func, partial(func, inverse=True))
+            else:
+                return FunctionTransformer(func)
+
     def _construct_encoder(self):
         feature_types = {feat: type_ for type_, feats in self.feature_types.items() for feat in feats}
         transformers = [(n, self._encoders[feature_types[n]], [n]) for n in self.input_features
@@ -308,32 +317,35 @@ class Encoder(BaseEncoderConstructor):
         self.encoder = ColumnTransformer(transformers, self._remainder, sparse_threshold=sparse, n_jobs=self._n_jobs,
                                          verbose=self._verbose)
 
-    def _get_features(self, arr):
+    def _retrieve_features(self, arr, fit=False):
+        # todo reformat to return array instead of DataFrame
         if isinstance(arr, Series):
             arr = arr.to_frame(arr.name)
 
         if isinstance(arr, DataFrame):
-            self.input_features = np.asarray(arr.columns, dtype=object)
-            assert self.input_features.shape[0] == len(set(self.input_features)), 'There are duplicated features in ' \
-                                                                                  'the input.'
+            features = np.asarray(arr.columns, dtype=object)
+            assert features.shape[0] == len(set(features)), 'There are duplicated features in the dataset.'
         else:
             if arr.ndim == 1:
                 arr = arr.reshape(-1, 1)
-            self.input_features = np.arange(arr.shape[1])
-            arr = pd.DataFrame(arr, columns=list(self.input_features)).infer_objects()
+            features = np.arange(arr.shape[1])
+            arr = pd.DataFrame(arr, columns=list(features)).infer_objects()
 
         if self._exclude is not None:
-            _not_in_features = self._exclude[~np.in1d(self._exclude, self.input_features)]
-            if _not_in_features.size > 0:
+            _not_in_features = self._exclude[~np.in1d(self._exclude, features)]
+            if (_not_in_features.size > 0) and fit:
                 self._exclude = self._exclude[~np.in1d(self._exclude, _not_in_features)]
-                warnings.warn(f'Features/indexes {_not_in_features} in exclusion list do not exist in the input. '
+                warnings.warn(f'Features/indexes {_not_in_features} in exclusion list do not exist in the dataset. '
                               f'Exclusion list was updated.', stacklevel=2)
 
-            self.input_features = self.input_features[~np.in1d(self.input_features, self._exclude)]
+            features = features[~np.in1d(features, self._exclude)]
             if self._remainder == 'passthrough':
-                self.input_features = np.append(self.input_features, self._exclude)
+                features = np.append(features, self._exclude)
 
-        return arr[self.input_features].copy()
+        if fit:
+            self.input_features = features
+
+        return arr[features].copy(), features
 
     def _validate_feature_types(self, types):
         if types:
@@ -396,7 +408,7 @@ class Encoder(BaseEncoderConstructor):
 
     def _get_encoded_feature_names(self):
         if self.encoder is None:
-            raise NotFittedError('Estimator was not yet fitted. Call "fit" or "fit_transform" methods first.')
+            raise NotFittedError('Estimator is not yet fitted. Call "fit" or "fit_transform" methods first.')
 
         def get_names(tf):
             if isinstance(tf, CategoricalEncoder):
@@ -441,12 +453,32 @@ class Encoder(BaseEncoderConstructor):
 
     def _apply_weights(self, X):
         weights = self._weights[1] * self._weights[2]
-        X[:, weights != 1] *= weights[weights != 1]
+        if sp_sparse.issparse(X):
+            X[:, weights != 1] = X[:, weights != 1].multiply(weights[weights != 1])
+        else:
+            X[:, weights != 1] *= weights[weights != 1]
         return X
 
     def _construct_output(self, X):
-        # todo
+        if self._return_as == 'sparse':
+            if sp_sparse.issparse(X):
+                return X
+            else:
+                with suppress(Exception):
+                    return sp_sparse.csr_matrix(X)
+                warnings.warn('Was not able to convert matrix to sparse. Will return as dense', stacklevel=2)
+
+        if sp_sparse.issparse(X):
+            X = X.toarray()
+
+        if self._return_as == 'dataframe':
+            X = pd.DataFrame(X, columns=self.encoded_feature_names)
+
         return X
+
+    def _encode_y(self, y):
+        if self.encoder_y is not None:
+            return self.encoder_y.transform(y)
 
     @check_options(remainder=('drop', 'passthrough'))
     @check_types(X=(DataFrame, Series, np.ndarray), y=(Series, np.ndarray, NoneType), exclude=(Iterable, NoneType),
@@ -455,19 +487,22 @@ class Encoder(BaseEncoderConstructor):
         """
 
         :param X:
+        :param y:
+        :param feature_types:
+        :param exclude:
+        :param remainder:
         :return:
         """
 
-        self._validate_feature_types(feature_types)
         self._exclude = np.asarray(exclude, dtype=object) if exclude else None
         self._remainder = remainder
-
-        X = self._get_features(X)
-        self._get_feature_types(X)
+        self._validate_feature_types(feature_types)
         self._validate_return_as()
 
-        self._construct_encoder()
+        X, _ = self._retrieve_features(X, fit=True)
+        self._get_feature_types(X)
 
+        self._construct_encoder()
         result = self.encoder.fit_transform(X)
         self._get_encoded_feature_names()
 
@@ -478,34 +513,52 @@ class Encoder(BaseEncoderConstructor):
         self.fitted = True
 
         if y is not None:
-            ...
-            # construct y_encoder
+            with suppress(AttributeError):
+                y = self.encoder_y.transform(y)
             return result, y
-
-        return result
+        else:
+            return result
 
     def transform(self, X, y=None):
-        # check_is_fitted(self)
-
         """
-        Check if DataFrame or Array;
 
-        retrieve names if dataframe and compare with original names (validate_features) also reorder if needed
-        raising a warning
-
-        Column Transform X and y
-        construct requested output
-
+        :param X:
+        :param y:
+        :return:
         """
+
+        if not self.fitted:
+            raise NotFittedError('Estimator is not yet fitted. Call "fit" or "fit_transform" methods first.')
+
+        X, features = self._retrieve_features(X, fit=False)
+        if not set(self.input_features).issubset(features):
+            raise KeyError('Features in array are not the same as in the dataset used to "fit" the estimator. '
+                           'Check the features used during "fit" in attribute "input_features".')
+
+        features = features[np.in1d(features, self.input_features)]
+        if not all(np.equal(features, self.input_features)):
+            warnings.warn('Dataset passed is not sorted in the same order as the dataset used to "fit". '
+                          'The dataset will be sorted according to the input_features.', stacklevel=2)
+
+        X = X[self.input_features]
+        result = self._apply_weights(self.encoder.transform(X))
+        result = self._construct_output(result)
 
         if y is not None:
-            ...
-            # transform y
-            return X, y
-
-        return X
+            with suppress(AttributeError):
+                y = self.encoder_y.transform(y)
+            return result, y
+        else:
+            return result
 
     def fit(self, X, y=None):
+        """
+
+        :param X:
+        :param y:
+        :return:
+        """
+
         self.fit_transform(X, y=y)
         return self
 
@@ -521,11 +574,15 @@ if __name__ == '__main__':
 
     X_train, X_test, y_train, y_test = train_test_split(X_, y_, test_size=0.2, random_state=20)
 
+    # todo testing parameters and outputs
     enc = Encoder(handle_missing=True, return_as='sparse', std_categoricals=False, cont_enc='StandardScaler',
-                  weights={'pclass': 3, 'age': 5, 'sex': 10})
-    exclude = ['name', 'ticket', 'cabin', 'boat', 'home.dest']
+                  weights={'pclass': 3, 'age': 5, 'sex': 10}, n_jobs=1)
+    exclude = ['goitre']
     feature_types = {'continuous': [],
                      'categorical': [],
                      'ordinal': ['pclass']}
 
-    enc.fit_transform(X_train, exclude=exclude, remainder='passthrough', feature_types=feature_types)
+    encoded = enc.fit_transform(X_train, y=y_train, exclude=exclude, remainder='drop', feature_types=feature_types)
+    enc_test = enc.transform(X_test, y_test)
+
+    print(1)
