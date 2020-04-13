@@ -1,8 +1,8 @@
 from typing import Tuple, Iterable, Union
+import warnings
 
 from pandas import DataFrame
 import numpy as np
-import warnings
 
 from ..utils.os_utl import check_types
 
