@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 from pandas import DataFrame, Series
 import scipy.sparse as sp_sparse
+from sklearn.base import BaseEstimator
 from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer, MinMaxScaler, OrdinalEncoder, \
     StandardScaler, RobustScaler, OneHotEncoder, FunctionTransformer
 from sklearn.impute import SimpleImputer
@@ -35,7 +36,9 @@ __MULTI_CAT_ENCODERS__ = {'MultiLabelBinarizer': MultiLabelBinarizer,
                           'FeatureHashing':      FeatureHasher}
 
 
-class CategoricalEncoder:
+# todo create callables for most common y_transformations: log, boolean
+# todo check how set_params of BaseEstimator work! Override it to work here and in BaseEncoder
+class CategoricalEncoder(BaseEstimator):
     """
 
     """
@@ -54,9 +57,12 @@ class CategoricalEncoder:
 
         self.encoder = None
         self._sparse = sparse
-        self._enc_params = {}
+        self._enc_params = enc_params or {}
         self._type = None
-        self.set_encoder_params(enc_params)
+
+    def get_params(self, deep=False):
+        return dict(cat_enc=self._chosen['categorical'], multi_cat_enc=self._chosen['multi_categorical'],
+                    sparse=self._sparse, enc_params=self._enc_params)
 
     @property
     def _chosen(self):
@@ -72,8 +78,7 @@ class CategoricalEncoder:
         assert encoder in self.__encoders__[feature_type], f'"encoder" of type {feature_type} must be one of ' \
                                                            f'{self.__encoders__[feature_type].keys()}.'
 
-        if params:
-            self.set_encoder_params({feature_type: params})
+        self.set_encoder_params({feature_type: params or {}})
         self.__chosen__[feature_type] = encoder
 
     @check_types(enc_params=(dict, NoneType))
@@ -93,6 +98,7 @@ class CategoricalEncoder:
         X = self._reshape_inputs(X, multi_cat)
 
         # get parameters for encoder chosen
+        self.set_encoder_params(None)
         params = self._get_encoder_params(self._type)
         if (self._chosen[self._type] == 'FeatureHashing') and ('n_features' not in params):
             params['n_features'] = len(set(chain.from_iterable(X)))
@@ -214,6 +220,7 @@ class BaseEncoderConstructor:
 
             # Second Step add correct encoder
             if enc_type == 'categorical':
+                # todo create dict with params for categorical encoder
                 steps.append((enc_name, CategoricalEncoder(self._chosen['categorical'],
                                                            self._chosen['multi_categorical'],
                                                            self._enc_params,
@@ -261,10 +268,7 @@ class BaseEncoderConstructor:
         assert encoder in self.__all_encoders__[feature_type], f'"encoder" of type {feature_type} must be one of' \
                                                                f' {self.__all_encoders__[feature_type]}.'
 
-        if params:
-            self.set_encoder_params({feature_type: params})
-        else:
-            self._set_encoders()
+        self.set_encoder_params({feature_type: params | {}})
         self.__chosen__[feature_type] = encoder
 
     @check_types(enc_params=(dict, NoneType))
@@ -302,7 +306,8 @@ class Encoder(BaseEncoderConstructor):
         self._verbose = verbose
         self._weights = None
 
-    def _set_encoder_y(self, func):
+    @staticmethod
+    def _set_encoder_y(func):
         if func is not None:
             if 'inverse' in func.__code__.co_varnames:
                 return FunctionTransformer(func, partial(func, inverse=True))
@@ -328,8 +333,8 @@ class Encoder(BaseEncoderConstructor):
         else:
             if arr.ndim == 1:
                 arr = arr.reshape(-1, 1)
-            features = np.arange(arr.shape[1])
-            arr = pd.DataFrame(arr, columns=list(features)).infer_objects()
+            arr = pd.DataFrame(arr, columns=[str(i) for i in range(arr.shape[1])]).infer_objects()
+            features = np.asarray(arr.columns)
 
         if self._exclude is not None:
             _not_in_features = self._exclude[~np.in1d(self._exclude, features)]
@@ -347,22 +352,31 @@ class Encoder(BaseEncoderConstructor):
 
         return arr[features].copy(), features
 
-    def _validate_feature_types(self, types):
+    def _validate_nulls(self, X):
+        if not self._handle_missing:
+            _x = X.values if isinstance(X, DataFrame) else X
+            cond = (_x != _x).sum() if sp_sparse.issparse(_x) else pd.isna(_x).sum()
+            assert cond == 0, 'Dataset contains null values but "handle_missing" is set as "False". Cannot encode ' \
+                              'with null values.'
+
+    def _validate(self, X, types):
+        self._validate_nulls(X)
+
+        # validate return
+        if (self._remainder == 'passthrough') and (self._return_as == 'sparse'):
+            if set(self._exclude).intersection(self.feature_types['categorical']):
+                warnings.warn('Cannot return sparse output with non-numeric columns passed in exclude as '
+                              '"passthrough". Will return as dense array.', stacklevel=2)
+            self._return_as = 'array'
+
+        # validate feature_types
         if types:
             __accepted_types__ = ('continuous', 'categorical', 'ordinal')
             assert all(key in __accepted_types__ for key in types.keys()), f'"feature_types" keys can only be ' \
                                                                            f'{__accepted_types__}'
             assert all(isinstance(value, (list, tuple)) for value in types.values()), f'"feature_types" values must ' \
                                                                                       f'be either a list or a tuple'
-
         self._feature_types = types
-
-    def _validate_return_as(self):
-        if (self._remainder == 'passthrough') and (self._return_as == 'sparse'):
-            if set(self._exclude).intersection(self.feature_types['categorical']):
-                warnings.warn('Cannot return sparse output with non-numeric columns passed in exclude as '
-                              '"passthrough". Will return as dense array.', stacklevel=2)
-            self._return_as = 'array'
 
     def _feature_types_sanity_check(self, df, accepted):
         # Remove registered features non existing in df and perform sanity checks
@@ -385,7 +399,7 @@ class Encoder(BaseEncoderConstructor):
                                                 f'Convert them to one of {accepted} or define their type ' \
                                                 f'in "features_types" argument.'
 
-    def _get_feature_types(self, df):
+    def _set_feature_types(self, df):
         __mapped_types__ = {'continuous': 'float', 'categorical': 'str', 'ordinal': 'category'}
         __types_mapping__ = {'str': 'O'}
         __accepted_dtypes__ = ('O', 'category', 'float', 'int')
@@ -400,6 +414,9 @@ class Encoder(BaseEncoderConstructor):
 
         for col in df.select_dtypes(include='category').columns:
             df[col].cat.reorder_categories(df[col].dtype.categories, ordered=True, inplace=True)
+
+        # Make sure object columns only contain string
+        df[df.select_dtypes(include='O').columns] = df.select_dtypes(include='O').astype('str')
 
         # save the feature types
         self.feature_types = {'continuous': list(df.select_dtypes(include=['int', 'float']).columns),
@@ -494,13 +511,12 @@ class Encoder(BaseEncoderConstructor):
         :return:
         """
 
-        self._exclude = np.asarray(exclude, dtype=object) if exclude else None
+        self._exclude = np.asarray(exclude, dtype=object) if exclude is not None else np.asarray([])
         self._remainder = remainder
-        self._validate_feature_types(feature_types)
-        self._validate_return_as()
+        self._validate(X, feature_types)
 
         X, _ = self._retrieve_features(X, fit=True)
-        self._get_feature_types(X)
+        self._set_feature_types(X)
 
         self._construct_encoder()
         result = self.encoder.fit_transform(X)
@@ -529,6 +545,8 @@ class Encoder(BaseEncoderConstructor):
 
         if not self.fitted:
             raise NotFittedError('Estimator is not yet fitted. Call "fit" or "fit_transform" methods first.')
+
+        self._validate_nulls(X)
 
         X, features = self._retrieve_features(X, fit=False)
         if not set(self.input_features).issubset(features):
@@ -575,8 +593,8 @@ if __name__ == '__main__':
     X_train, X_test, y_train, y_test = train_test_split(X_, y_, test_size=0.2, random_state=20)
 
     # todo testing parameters and outputs
-    enc = Encoder(handle_missing=True, return_as='sparse', std_categoricals=False, cont_enc='StandardScaler',
-                  weights={'pclass': 3, 'age': 5, 'sex': 10}, n_jobs=1)
+    enc = Encoder(handle_missing=True, return_as='array', std_categoricals=False, cont_enc='StandardScaler',
+                  weights={'age': 5, 'sex': 10}, n_jobs=1, verbose=1)
     exclude = ['goitre']
     feature_types = {'continuous': [],
                      'categorical': [],
