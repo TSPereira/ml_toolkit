@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from typing import Tuple, Iterable
 
 from decorator import decorator
+NoneType = type(None)
 
 
 def check_types(**types):

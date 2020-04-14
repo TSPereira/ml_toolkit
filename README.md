@@ -33,6 +33,10 @@ standardpackage
 |  .gitignore
 |  README.md
 |
+|--db_interaction
+|    generic
+|    oracle
+|
 |--deep_learning
 |    pytorch
 |      optim

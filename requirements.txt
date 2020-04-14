@@ -2,6 +2,7 @@ decorator==4.4.2
 packaging==20.3
 pandas==1.0.3
 pdfminer.six==20181108
+cx-oracle==7.3.0
 pytorch==1.3.1
 numpy==1.18.1
 scikit-learn==0.22.1
