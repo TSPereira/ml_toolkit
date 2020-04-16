@@ -122,6 +122,10 @@ class TimeSeriesSplit:
         :param kwargs: not used. just for sklearn compatibility
         :return: array of indices, array of indices
         """
+
+        if len(X) <= self.n_splits:
+            raise ValueError(f'Too few examples {len(X)} to split {self.n_splits} times.')
+
         initial_train_size, test_size, period = self._get_ratios(length=X.shape[0])
         data_index = np.arange(X.shape[0])
 

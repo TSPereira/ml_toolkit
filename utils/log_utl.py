@@ -33,7 +33,7 @@ class timeit(ContextDecorator):
     """
 
     @check_types(verbose=int, desc=(str, type(None)))
-    def __init__(self, desc: str = None, verbose: int = 0, verbose_level: int = 1, stdout=sys.stdout) -> None:
+    def __init__(self, verbose: int = 0, verbose_level: int = 1, desc: str = None, stdout=sys.stdout) -> None:
         self.verbose = verbose
         self.verbose_level = verbose_level
         self.desc = desc
