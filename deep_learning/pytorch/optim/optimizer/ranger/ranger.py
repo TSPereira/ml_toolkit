@@ -30,18 +30,7 @@ import torch
 from torch.optim.optimizer import Optimizer
 
 
-# IMPLEMENTED IN PyTorch 1.4.0
-class _RequiredParameter(object):
-    """Singleton class representing a required parameter for an Optimizer."""
-    def __repr__(self):
-        return "<required parameter>"
-
-
-required = _RequiredParameter()
-
-
 class Ranger(Optimizer):
-
     def __init__(self, params, lr=1e-3,                        # lr
                  alpha=0.5, k=6, N_sma_threshhold=5,           # Ranger options
                  betas=(.95,0.999), eps=1e-5, weight_decay=0,  # Adam options

@@ -21,16 +21,7 @@
 import math
 import torch
 from torch.optim.optimizer import Optimizer
-
-
-# IMPLEMENTED IN PyTorch 1.4.0
-class _RequiredParameter(object):
-    """Singleton class representing a required parameter for an Optimizer."""
-    def __repr__(self):
-        return "<required parameter>"
-
-
-required = _RequiredParameter()
+from ..utils import required
 
 
 class RangerVA(Optimizer):
