@@ -6,6 +6,7 @@ from contextlib import suppress
 import warnings
 
 import numpy as np
+import pandas as pd
 from pandas import DataFrame, Series
 import scipy.sparse as sp_sparse
 from sklearn.base import BaseEstimator
@@ -18,10 +19,12 @@ from sklearn.feature_extraction import FeatureHasher
 from sklearn.exceptions import NotFittedError
 from sklearn.compose import ColumnTransformer
 
-# from ..utils.os_utl import check_options, check_types
-# from ..utils.generic_utl import duplicated, std_sparse
-from utils.os_utl import check_options, check_types
-from utils.generic_utl import duplicated, std_sparse
+try:
+    from ..utils.os_utl import check_options, check_types
+    from ..utils.generic_utl import duplicated, std_sparse
+except ImportError:
+    from utils.os_utl import check_options, check_types
+    from utils.generic_utl import duplicated, std_sparse
 NoneType = type(None)
 
 
@@ -153,7 +156,7 @@ class CategoricalEncoder(BaseEstimator):
         return np.asarray(fnames)
 
 
-class BaseEncoderConstructor:
+class EncoderMixin:
     __encoders__ = {'continuous': __CONT_ENCODERS__,
                     'categorical': CategoricalEncoder,
                     'ordinal': __ORD_ENCODERS__}
@@ -282,7 +285,7 @@ class BaseEncoderConstructor:
         self._set_encoders()
 
 
-class Encoder(BaseEncoderConstructor):
+class Encoder(EncoderMixin):
     @check_options(return_as=('sparse', 'dataframe', 'array'))
     @check_types(weights=(dict, NoneType), return_as=str, verbose=(int, bool), y_transformer=(Callable, NoneType))
     def __init__(self, cont_enc='StandardScaler', cat_enc='OneHotEncoder', multi_cat_enc='MultiLabelBinarizer',
@@ -294,9 +297,10 @@ class Encoder(BaseEncoderConstructor):
         self.encoder = None
         self.encoder_y = self._set_encoder_y(y_transformer)
         self.input_features = None
+        self.input_index = None
         self.feature_types = dict()
         self.fitted = False
-        self.weights = weights
+        self.weights = weights or {}
 
         self._exclude = None
         self._feature_types = None
@@ -317,7 +321,7 @@ class Encoder(BaseEncoderConstructor):
     def _construct_encoder(self):
         feature_types = {feat: type_ for type_, feats in self.feature_types.items() for feat in feats}
         transformers = [(n, self._encoders[feature_types[n]], [n]) for n in self.input_features
-                        if n not in self._exclude]
+                        if n not in list(self._exclude)]
         sparse = 1 if self._return_as == 'sparse' else 0
         self.encoder = ColumnTransformer(transformers, self._remainder, sparse_threshold=sparse, n_jobs=self._n_jobs,
                                          verbose=self._verbose)
@@ -349,6 +353,7 @@ class Encoder(BaseEncoderConstructor):
 
         if fit:
             self.input_features = features
+            self.input_index = arr.index.values
 
         return arr[features].copy(), features
 
@@ -376,7 +381,7 @@ class Encoder(BaseEncoderConstructor):
                                                                            f'{__accepted_types__}'
             assert all(isinstance(value, (list, tuple)) for value in types.values()), f'"feature_types" values must ' \
                                                                                       f'be either a list or a tuple'
-        self._feature_types = types
+        self._feature_types = types or {}
 
     def _feature_types_sanity_check(self, df, accepted):
         # Remove registered features non existing in df and perform sanity checks
@@ -402,7 +407,7 @@ class Encoder(BaseEncoderConstructor):
     def _set_feature_types(self, df):
         __mapped_types__ = {'continuous': 'float', 'categorical': 'str', 'ordinal': 'category'}
         __types_mapping__ = {'str': 'O'}
-        __accepted_dtypes__ = ('O', 'category', 'float', 'int')
+        __accepted_dtypes__ = ('O', 'category', 'float', 'int', 'int64')
         self._feature_types_sanity_check(df, __accepted_dtypes__)
 
         # convert features registered if needed
@@ -419,7 +424,7 @@ class Encoder(BaseEncoderConstructor):
         df[df.select_dtypes(include='O').columns] = df.select_dtypes(include='O').astype('str')
 
         # save the feature types
-        self.feature_types = {'continuous': list(df.select_dtypes(include=['int', 'float']).columns),
+        self.feature_types = {'continuous': list(df.select_dtypes(include=['int', 'int64', 'float']).columns),
                               'categorical': list(df.select_dtypes(include='O').columns),
                               'ordinal': list(df.select_dtypes(include='category').columns)}
 
@@ -430,20 +435,20 @@ class Encoder(BaseEncoderConstructor):
         def get_names(tf):
             if isinstance(tf, CategoricalEncoder):
                 return tf.feature_names
-            return ['']
+            return ''
 
         full_names = []
         for name, trans in self.encoder.named_transformers_.items():
             if isinstance(trans, Pipeline):
-                names = [get_names(step_trans) for step_trans in trans.named_steps.values()]
+                names = (get_names(step_trans) for step_trans in trans.named_steps.values())
+                names = list(filter(None, chain.from_iterable(names)))
             else:
                 if name == 'remainder':
-                    names = [self._exclude]
+                    names = self._exclude
                     name = ''
                 else:
                     names = get_names(trans)
 
-            names = list(filter(None, chain.from_iterable(names)))
             names = [f'{name}|{str(col)}'.strip('|') for col in names] if len(names) > 0 else [name]
             full_names.extend(names)
 
@@ -489,7 +494,7 @@ class Encoder(BaseEncoderConstructor):
             X = X.toarray()
 
         if self._return_as == 'dataframe':
-            X = pd.DataFrame(X, columns=self.encoded_feature_names)
+            X = pd.DataFrame(X, columns=self.encoded_feature_names, index=self.input_index)
 
         return X
 
@@ -569,20 +574,21 @@ class Encoder(BaseEncoderConstructor):
         else:
             return result
 
-    def fit(self, X, y=None):
+    def fit(self, X, y=None, feature_types=None, exclude=None, remainder='drop'):
         """
 
         :param X:
         :param y:
+        :param feature_types:
+        :param exclude:
+        :param remainder:
         :return:
         """
-
-        self.fit_transform(X, y=y)
+        self.fit_transform(X, y, feature_types, exclude, remainder)
         return self
 
 
 if __name__ == '__main__':
-    import pandas as pd
     from sklearn.model_selection import train_test_split
 
     X_, y_ = pd.read_csv('feature_encoding/sick_x.csv', index_col=0), \
