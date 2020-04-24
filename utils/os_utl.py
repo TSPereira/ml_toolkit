@@ -169,7 +169,7 @@ def create_version_folder(version: str, model_versions_folder: str, create_subfo
 
     # create subfolder with next sub_version
     sub_version = '0' if not os.listdir(path) else str(max([int(f[f.rfind('.') + 1:]) for f in os.listdir(path)]) + 1)
-    path = os.path.join(path, version + '.' + sub_version)
+    path = os.path.join(path, version + '.' + sub_version.zfill(3))
     os.makedirs(path, exist_ok=True)
 
     # create subfolder "data"
@@ -202,7 +202,8 @@ def clean_version_folders(main_version: str, model_versions_folder: str, sub_ver
             print('Number of versions to keep <=0! Did not delete anything.')
             return
 
-        to_keep = sorted((int(f[f.rfind('.') + 1:]) for f in os.listdir(path)), reverse=True)
+        to_keep = sorted((int(f[f.rfind('.') + 1:]) for f in os.listdir(path) if
+                          (f.startswith('v') and f[-1].isdigit())), reverse=True)
         to_keep = [main_version + '.' + str(vers) for vers in to_keep[:hist_keep]]
         fld_to_del = fld_to_del.difference(to_keep)
 
@@ -226,7 +227,8 @@ def bump_version(path: str, production_version: bool = False) -> str:
     :return string: next version denomination of the model
     """
 
-    _current_version = max([float(f[1:]) for f in os.listdir(path)], default=0.1)
+    _current_version = max([float(f[1:]) for f in os.listdir(path) if (f.startswith('v') and f[-1].isdigit())],
+                           default=0.1)
     if production_version:
         next_version = float(math.ceil(_current_version))
     else:
