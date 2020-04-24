@@ -42,7 +42,7 @@ def std_sparse(a: np.ndarray, axis: int = None) -> Union[np.ndarray, float]:
     return np.sqrt(var_sparse(a, axis))
 
 
-def get_mag(a):
+def get_magnitude(a):
     with np.errstate(divide='ignore'):
         z = np.log10(np.abs(a))
 
