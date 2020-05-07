@@ -1,293 +1,33 @@
 from itertools import chain
 from functools import partial
-from collections import ChainMap
-from typing import Iterable, Callable
+from typing import Iterable
 from contextlib import suppress
+from inspect import isfunction, getfullargspec
 import warnings
 
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
 import scipy.sparse as sp_sparse
-from sklearn.base import BaseEstimator
-from sklearn.preprocessing import MultiLabelBinarizer, LabelBinarizer, MinMaxScaler, OrdinalEncoder, \
-    StandardScaler, RobustScaler, OneHotEncoder, FunctionTransformer
-from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import FunctionTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction import FeatureHasher
 from sklearn.exceptions import NotFittedError
 from sklearn.compose import ColumnTransformer
 
 try:
+    from .base import EncoderMixin, CategoricalEncoder, __ALL_IMPLEMENTED_ENCODERS__
     from ..utils.os_utl import check_options, check_types
     from ..utils.generic_utl import duplicated, std_sparse
-except ImportError:
+except (ImportError, ValueError):
+    from feature_encoding.base import EncoderMixin, CategoricalEncoder, __ALL_IMPLEMENTED_ENCODERS__
     from utils.os_utl import check_options, check_types
     from utils.generic_utl import duplicated, std_sparse
 NoneType = type(None)
 
 
-__CONT_ENCODERS__ = {'MinMaxScaler':   MinMaxScaler,
-                     'StandardScaler': StandardScaler,
-                     'RobustScaler':   RobustScaler}
-__ORD_ENCODERS__ = {'OrdinalEncoder': OrdinalEncoder}
-__CAT_ENCODERS__ = {'LabelBinarizer': LabelBinarizer,
-                    'OneHotEncoder':  OneHotEncoder}
-__MULTI_CAT_ENCODERS__ = {'MultiLabelBinarizer': MultiLabelBinarizer,
-                          'CountVectorizer':     CountVectorizer,
-                          'FeatureHashing':      FeatureHasher}
-
-
-# todo create callables for most common y_transformations: log, boolean
-# todo check how set_params of BaseEstimator work! Override it to work here and in BaseEncoder
-class CategoricalEncoder(BaseEstimator):
-    """
-
-    """
-
-    __encoders__ = {'categorical': __CAT_ENCODERS__,
-                    'multi_categorical': __MULTI_CAT_ENCODERS__}
-    # todo define default enc params per encoder as global variable
-    __default_enc_params__ = {'categorical': {'handle_unknown': 'ignore'},
-                              'multi_categorical': {'lowercase': False, 'analyzer': list,  # CountVectorizer
-                                                    'input_type': 'string'}}               # FeatureHashing
-
-    def __init__(self, cat_enc='OneHotEncoder', multi_cat_enc='MultiLabelBinarizer', enc_params=None, sparse=True):
-        # filter enc_params to only have 'categorical' and 'multi_categorical'
-        # define default params
-        self.__chosen__ = {'categorical': cat_enc, 'multi_categorical': multi_cat_enc}
-
-        self.encoder = None
-        self._sparse = sparse
-        self._enc_params = enc_params or {}
-        self._type = None
-
-    def get_params(self, deep=False):
-        return dict(cat_enc=self._chosen['categorical'], multi_cat_enc=self._chosen['multi_categorical'],
-                    sparse=self._sparse, enc_params=self._enc_params)
-
-    @property
-    def _chosen(self):
-        return self.__chosen__
-
-    def _get_encoder_params(self, enc_type):
-        _expected_args = self.__encoders__[enc_type][self._chosen[enc_type]].__init__.__code__.co_varnames
-        return {k: v for k, v in self._enc_params[enc_type].items() if k in _expected_args}
-
-    @check_types(params=(NoneType, dict))
-    def set_encoder(self, encoder, feature_type, params=None):
-        assert feature_type in self.__encoders__, f'"feature_type" must be one of {list(self.__encoders__.keys())}.'
-        assert encoder in self.__encoders__[feature_type], f'"encoder" of type {feature_type} must be one of ' \
-                                                           f'{self.__encoders__[feature_type].keys()}.'
-
-        self.set_encoder_params({feature_type: params or {}})
-        self.__chosen__[feature_type] = encoder
-
-    @check_types(enc_params=(dict, NoneType))
-    def set_encoder_params(self, enc_params):
-        enc_params = enc_params or {}
-        for enc_type, params in self.__default_enc_params__.items():
-            assert isinstance(params, dict), 'Parameters for each "feature_type" must be passed as a dictionary.'
-            self._enc_params[enc_type] = dict(ChainMap(enc_params.get(enc_type) or {},
-                                                       self._enc_params.get(enc_type) or {},
-                                                       self.__default_enc_params__[enc_type]))
-
-    def _construct_encoder(self, X):
-        multi_cat = any(isinstance(val, list) for val in np.asarray(X).reshape(-1, ))
-        self._type = 'multi_categorical' if multi_cat else 'categorical'
-
-        # reshape inputs to correct format
-        X = self._reshape_inputs(X, multi_cat)
-
-        # get parameters for encoder chosen
-        self.set_encoder_params(None)
-        params = self._get_encoder_params(self._type)
-        if (self._chosen[self._type] == 'FeatureHashing') and ('n_features' not in params):
-            params['n_features'] = len(set(chain.from_iterable(X)))
-            warnings.warn(f'FeatureHashing needs to set a defined number of features. None was explicitly passed. To '
-                          f'avoid collisions, "n_features" will be set to the number of unique categories in the '
-                          f'column ({params["n_features"]})')
-
-        self.encoder = self.__encoders__[self._type][self._chosen[self._type]](**params)
-        return X
-
-    @staticmethod
-    def _reshape_inputs(X, multi_cat):
-        return list(map(lambda x: [str(x)] if not isinstance(x, list) else [str(y) for y in x], X)) if multi_cat else \
-            np.asarray(X).reshape(-1, 1)
-
-    def _construct_output(self, X):
-        if self._sparse and not sp_sparse.issparse(X):
-            X = sp_sparse.csr_matrix(X)
-        elif not self._sparse and sp_sparse.issparse(X):
-            X = X.toarray()
-        return X
-
-    def fit_transform(self, X, y=None, **kwargs):
-        X = self._construct_encoder(X)
-        return self._construct_output(self.encoder.fit_transform(X))
-
-    def fit(self, X, y=None, **kwargs):
-        self.fit_transform(X, y=y, **kwargs)
-        return self
-
-    def transform(self, X, y=None, **kwargs):
-        multi_cat = True if type(self.encoder) in self.__encoders__['multi_categorical'].values() else False
-        X = self._reshape_inputs(X, multi_cat)
-        return self._construct_output(self.encoder.transform(X))
-
-    @property
-    def feature_names(self):
-        if self.encoder is None:
-            raise NotFittedError(f'Estimator is not yet fitted. Call "fit" or "fit_transform" methods first.')
-
-        if isinstance(self.encoder, (LabelBinarizer, MultiLabelBinarizer)):
-            fnames = self.encoder.classes_
-        elif isinstance(self.encoder, CountVectorizer):
-            fnames = self.encoder.get_feature_names()
-        elif isinstance(self.encoder, OneHotEncoder):
-            fnames = self.encoder.categories_[0]
-        elif isinstance(self.encoder, FeatureHasher):
-            fnames = range(self.encoder.n_features)
-        else:
-            raise NotImplementedError()
-
-        return np.asarray(fnames)
-
-
-class EncoderMixin:
-    __encoders__ = {'continuous': __CONT_ENCODERS__,
-                    'categorical': CategoricalEncoder,
-                    'ordinal': __ORD_ENCODERS__}
-
-    __all_encoders__ = __encoders__.copy()
-    __all_encoders__.pop('categorical')
-    __all_encoders__ = {k: set(v) for k, v in {**__encoders__['categorical'].__encoders__, **__all_encoders__}.items()}
-
-    __default_enc_params__ = {'continuous': {},
-                              'categorical': {'handle_unknown': 'ignore'},
-                              'multi_categorical': {},
-                              'ordinal': {}}
-
-    @check_options(cont_enc=tuple(__CONT_ENCODERS__), cat_enc=tuple(__CAT_ENCODERS__),
-                   multi_cat_enc=tuple(__MULTI_CAT_ENCODERS__))
-    @check_types(cont_enc=str, cat_enc=str, multi_cat_enc=str, enc_params=(dict, NoneType), std_categoricals=bool,
-                 handle_missing=bool)
-    def __init__(self, cont_enc='StandardScaler', cat_enc='OneHotEncoder', multi_cat_enc='MultiLabelBinarizer',
-                 enc_params=None, std_categoricals=False, handle_missing=False):
-
-        self.__chosen__ = {'continuous': cont_enc, 'categorical': cat_enc, 'multi_categorical': multi_cat_enc,
-                           'ordinal': 'OrdinalEncoder'}
-        self.__compute_weights__ = False
-        self.__handle_missing__ = handle_missing
-        self.__std_categoricals__ = std_categoricals
-
-        self._enc_params = {}
-        self._encoders = dict()
-
-        self.set_encoder_params(enc_params)
-
-    @property
-    def _chosen(self):
-        return self.__chosen__
-
-    @property
-    def _std_categoricals(self):
-        return self.__std_categoricals__
-
-    @_std_categoricals.setter
-    @check_types(flag=bool)
-    def _std_categoricals(self, flag):
-        self.__std_categoricals__ = flag
-        self._set_encoders()  # reset encoders
-
-    @property
-    def _handle_missing(self):
-        return self.__handle_missing__
-
-    @_handle_missing.setter
-    @check_types(flag=bool)
-    def _handle_missing(self, flag):
-        self.__handle_missing__ = flag
-        self._set_encoders()  # reset encoders
-
-    def _set_encoders(self):
-        for enc_type in self.__encoders__:
-            enc_name = self._chosen[enc_type]
-
-            steps = list()
-            # First Step add or not Imputer
-            if self._handle_missing:
-                steps.append(('Imputer', self._set_imputer(enc_type)))
-
-            # Second Step add correct encoder
-            if enc_type == 'categorical':
-                # todo create dict with params for categorical encoder
-                steps.append((enc_name, CategoricalEncoder(self._chosen['categorical'],
-                                                           self._chosen['multi_categorical'],
-                                                           self._enc_params,
-                                                           sparse=(not self._std_categoricals))))
-            else:
-                encoder = self.__encoders__[enc_type][enc_name]
-                steps.append((enc_name, encoder(**self._enc_params[enc_type])))
-
-            # Third Step - Adjustments to specific encoders
-            # If ordinal encoder no need for imputer (worse since it can't take always string or int), so remove it and
-            # add a continuous encoder to set the ordinal to same feature space as the continuous
-            cont_enc_name = self._chosen['continuous']
-            if enc_type == 'ordinal':
-                steps.pop(0)
-                steps.append((cont_enc_name,
-                              self.__encoders__['continuous'][cont_enc_name](**self._enc_params['continuous'])))
-
-            # if categorical check if should standardize it and if so, how.
-            if enc_type in ('categorical', 'multi_categorical'):
-                if self._std_categoricals:
-                    if cont_enc_name != 'StandardScaler':
-                        self.__compute_weights__ = True
-                    else:
-                        steps.append(('Standardizer',
-                                      self.__encoders__['continuous'][cont_enc_name](**self._enc_params['continuous'])))
-
-            # Finally, cleanup
-            # If only one step return the single encoder else return the pipeline
-            self._encoders[enc_type] = steps[0][1] if len(steps) == 1 else Pipeline(steps)
-
-    @staticmethod
-    def _set_imputer(enc_type):
-        # todo add_indicator flag
-        if enc_type == 'continuous':
-            imputer = SimpleImputer(strategy='median')
-        else:
-            # elif enc_type in ('categorical', 'multi_categorical', 'ordinal'):
-            imputer = SimpleImputer(strategy='constant', fill_value='unknown')
-
-        return imputer
-
-    @check_types(params=(NoneType, dict))
-    def set_encoder(self, encoder, feature_type, params=None):
-        assert feature_type in self.__all_encoders__, f'"feature_type" must be one of {self.__all_encoders__}.'
-        assert encoder in self.__all_encoders__[feature_type], f'"encoder" of type {feature_type} must be one of' \
-                                                               f' {self.__all_encoders__[feature_type]}.'
-
-        self.set_encoder_params({feature_type: params | {}})
-        self.__chosen__[feature_type] = encoder
-
-    @check_types(enc_params=(dict, NoneType))
-    def set_encoder_params(self, enc_params):
-        enc_params = enc_params or {}
-        for enc_type, params in self.__default_enc_params__.items():
-            assert isinstance(params, dict), 'Parameters for each "feature_type" must be passed as a dictionary.'
-            self._enc_params[enc_type] = dict(ChainMap(enc_params.get(enc_type) or {},
-                                                       self._enc_params.get(enc_type) or {},
-                                                       self.__default_enc_params__[enc_type]))
-        self._set_encoders()
-
-
 class Encoder(EncoderMixin):
     @check_options(return_as=('sparse', 'dataframe', 'array'))
-    @check_types(weights=(dict, NoneType), return_as=str, verbose=(int, bool), y_transformer=(Callable, NoneType))
+    @check_types(weights=(dict, NoneType), return_as=str, verbose=(int, bool))
     def __init__(self, cont_enc='StandardScaler', cat_enc='OneHotEncoder', multi_cat_enc='MultiLabelBinarizer',
                  enc_params=None, weights=None, std_categoricals=False, handle_missing=False, y_transformer=None,
                  return_as='sparse',  n_jobs=1, verbose=0):
@@ -295,7 +35,7 @@ class Encoder(EncoderMixin):
         super().__init__(cont_enc, cat_enc, multi_cat_enc, enc_params, std_categoricals, handle_missing)
         self.encoded_feature_names = None
         self.encoder = None
-        self.encoder_y = self._set_encoder_y(y_transformer)
+        self.encoder_y = None
         self.input_features = None
         self.input_index = None
         self.feature_types = dict()
@@ -310,24 +50,50 @@ class Encoder(EncoderMixin):
         self._verbose = verbose
         self._weights = None
 
-    @staticmethod
-    def _set_encoder_y(func):
+        self.set_encoder_y(y_transformer)
+
+    def set_encoder_y(self, func):
         if func is not None:
-            if 'inverse' in func.__code__.co_varnames:
-                return FunctionTransformer(func, partial(func, inverse=True))
+            # if implements fit_transform, transform and inverse_transform set this as the transformer
+            # else, if it is string search in __all_encoders__ dict for transformer
+            # else, if it is a callable check if it has "inverse" in the signature
+            # even if it doesn't have an inverse, assign it, but warn the user about this
+            if all(hasattr(func, attr) for attr in ('fit_transform', 'inverse_transform')):
+                self.encoder_y = func() if isinstance(func, type) else func
+
+            elif isinstance(func, str):
+                try:
+                    self.encoder_y = __ALL_IMPLEMENTED_ENCODERS__[func]()
+                except KeyError:
+                    raise NotImplementedError(f'Transformer passed for y ({func}) is not implemented. Pass it as a '
+                                              f'transformer instance instead.')
+
+            elif isfunction(func):
+                args = getfullargspec(func).args + getfullargspec(func).kwonlyargs
+                if 'inverse' in args:
+                    self.encoder_y = FunctionTransformer(func, partial(func, inverse=True))
+                else:
+                    warnings.warn('Callable passed as y transformer does not provide an inverse transformation '
+                                  '(boolean keyword argument "inverse" is not present in function signature). '
+                                  'Inverse transformations will be identity (thus not transforming back to the '
+                                  'original feature space.', stacklevel=2)
+                    self.encoder_y = FunctionTransformer(func)
+                setattr(self.encoder_y, 'custom', True)
             else:
-                return FunctionTransformer(func)
+                raise ValueError(f'"y" transformer passed is not applicable. Either pass a transformer, a callable or '
+                                 f'one of {__ALL_IMPLEMENTED_ENCODERS__}.')
 
     def _construct_encoder(self):
-        feature_types = {feat: type_ for type_, feats in self.feature_types.items() for feat in feats}
-        transformers = [(n, self._encoders[feature_types[n]], [n]) for n in self.input_features
-                        if n not in list(self._exclude)]
-        sparse = 1 if self._return_as == 'sparse' else 0
-        self.encoder = ColumnTransformer(transformers, self._remainder, sparse_threshold=sparse, n_jobs=self._n_jobs,
+        _feature_types = {feat: type_ for type_, feats in self.feature_types.items() for feat in feats}
+        _transformers = [(fname, self._encoders[_feature_types[fname]], [fname]) for fname in self.input_features
+                        if fname not in list(self._exclude)]
+        _sparse = 1 if self._return_as == 'sparse' else 0
+        self.encoder = ColumnTransformer(_transformers, self._remainder, sparse_threshold=_sparse, n_jobs=self._n_jobs,
                                          verbose=self._verbose)
 
     def _retrieve_features(self, arr, fit=False):
-        # todo reformat to return array instead of DataFrame
+        # todo reformat to allow sparse inputs (use of SparseArray in pandas)
+        # need to also extract dtypes for next function
         if isinstance(arr, Series):
             arr = arr.to_frame(arr.name)
 
@@ -355,7 +121,7 @@ class Encoder(EncoderMixin):
             self.input_features = features
             self.input_index = arr.index.values
 
-        return arr[features].copy(), features
+        return arr[features].copy(), features, arr.index.values
 
     def _validate_nulls(self, X):
         if not self._handle_missing:
@@ -481,7 +247,7 @@ class Encoder(EncoderMixin):
             X[:, weights != 1] *= weights[weights != 1]
         return X
 
-    def _construct_output(self, X):
+    def _construct_output(self, X, feature_names, index):
         if self._return_as == 'sparse':
             if sp_sparse.issparse(X):
                 return X
@@ -494,13 +260,45 @@ class Encoder(EncoderMixin):
             X = X.toarray()
 
         if self._return_as == 'dataframe':
-            X = pd.DataFrame(X, columns=self.encoded_feature_names, index=self.input_index)
+            X = pd.DataFrame(X, columns=feature_names, index=index)
 
         return X
 
-    def _encode_y(self, y):
-        if self.encoder_y is not None:
-            return self.encoder_y.transform(y)
+    def _encode_y(self, y, fit=False, index=None):
+        if self.encoder_y is None:
+            raise NotImplementedError('Trying to transform "y" input, but no transformer for "y" was set.')
+            # todo when no transform for y set and y is passed, find type of y and set standard encoder for that type
+
+        y_ = y.copy()
+
+        # if Encoder is not custom, prepare data for usual encoders
+        feature_names = None
+        if not hasattr(self.encoder_y, 'custom'):
+            if isinstance(y_, Series):
+                y_ = y_.to_frame(y_.name)
+
+            if isinstance(y_, DataFrame):
+                feature_names = np.asarray(y_.columns, dtype=object)
+                y_ = y_.values
+
+            else:
+                if y_.ndim == 1:
+                    y_ = y_.reshape(-1, 1)
+
+        # get values
+        output = self.encoder_y.fit_transform(y_) if fit else self.encoder_y.transform(y_)
+
+        # get header
+        try:
+            feature_names = self.encoder_y.feature_names
+        except AttributeError:
+            n_cols = 1 if output.ndim == 1 else output.shape[1]
+            if (feature_names is None) or (len(feature_names) != n_cols):
+                feature_names = list(range(n_cols))
+
+        # get index
+        index = index if index is not None else range(len(output))
+        return self._construct_output(output, feature_names, index)
 
     @check_options(remainder=('drop', 'passthrough'))
     @check_types(X=(DataFrame, Series, np.ndarray), y=(Series, np.ndarray, NoneType), exclude=(Iterable, NoneType),
@@ -520,7 +318,7 @@ class Encoder(EncoderMixin):
         self._remainder = remainder
         self._validate(X, feature_types)
 
-        X, _ = self._retrieve_features(X, fit=True)
+        X, _, index = self._retrieve_features(X, fit=True)
         self._set_feature_types(X)
 
         self._construct_encoder()
@@ -530,15 +328,13 @@ class Encoder(EncoderMixin):
         self._calculate_weights(result)
         result = self._apply_weights(result)
 
-        result = self._construct_output(result)
+        result = self._construct_output(result, self.encoded_feature_names, index)
         self.fitted = True
 
-        if y is not None:
-            with suppress(AttributeError):
-                y = self.encoder_y.transform(y)
-            return result, y
-        else:
+        if y is None:
             return result
+        else:
+            return result, self._encode_y(y, fit=True, index=index)
 
     def transform(self, X, y=None):
         """
@@ -553,7 +349,7 @@ class Encoder(EncoderMixin):
 
         self._validate_nulls(X)
 
-        X, features = self._retrieve_features(X, fit=False)
+        X, features, index = self._retrieve_features(X, fit=False)
         if not set(self.input_features).issubset(features):
             raise KeyError('Features in array are not the same as in the dataset used to "fit" the estimator. '
                            'Check the features used during "fit" in attribute "input_features".')
@@ -565,14 +361,12 @@ class Encoder(EncoderMixin):
 
         X = X[self.input_features]
         result = self._apply_weights(self.encoder.transform(X))
-        result = self._construct_output(result)
+        result = self._construct_output(result, self.encoded_feature_names, index)
 
-        if y is not None:
-            with suppress(AttributeError):
-                y = self.encoder_y.transform(y)
-            return result, y
-        else:
+        if y is None:
             return result
+        else:
+            return result, self._encode_y(y, index=index)
 
     def fit(self, X, y=None, feature_types=None, exclude=None, remainder='drop'):
         """
@@ -591,15 +385,14 @@ class Encoder(EncoderMixin):
 if __name__ == '__main__':
     from sklearn.model_selection import train_test_split
 
-    X_, y_ = pd.read_csv('feature_encoding/sick_x.csv', index_col=0), \
-             pd.read_csv('feature_encoding/sick_y.csv', index_col=0, squeeze=True)
+    X_ = pd.read_csv('feature_encoding/sick_x.csv', index_col=0)
+    y_ = pd.read_csv('feature_encoding/sick_y.csv', index_col=0, squeeze=True)
     X_.iloc[:, :] = np.where(X_.isnull(), np.nan, X_)
     X_.drop(['TBG', 'TBG_measured'], axis=1, inplace=True)
 
     X_train, X_test, y_train, y_test = train_test_split(X_, y_, test_size=0.2, random_state=20)
 
-    # todo testing parameters and outputs
-    enc = Encoder(handle_missing=True, return_as='array', std_categoricals=False, cont_enc='StandardScaler',
+    enc = Encoder(handle_missing=True, return_as='dataframe', std_categoricals=False, cont_enc='StandardScaler',
                   weights={'age': 5, 'sex': 10}, n_jobs=1, verbose=1)
     exclude = ['goitre']
     feature_types = {'continuous': [],
