@@ -1,6 +1,6 @@
 from itertools import chain
 from functools import partial
-from typing import Iterable
+from typing import Iterable, Optional, Callable, Union
 from contextlib import suppress
 from inspect import isfunction, getfullargspec
 import warnings
@@ -28,11 +28,24 @@ NoneType = type(None)
 
 
 class Encoder(EncoderMixin):
+    """
+    todo
+    """
+
     @check_options(return_as=('sparse', 'dataframe', 'array'))
-    @check_types(weights=(dict, NoneType), return_as=str, verbose=(int, bool))
-    def __init__(self, cont_enc='StandardScaler', cat_enc='OneHotEncoder', multi_cat_enc='MultiLabelBinarizer',
-                 enc_params=None, weights=None, std_categoricals=False, handle_missing=False, y_transformer=None,
-                 return_as='sparse',  n_jobs=1, verbose=0):
+    @check_types(weights=(dict, NoneType), enc_params=(dict, NoneType))
+    def __init__(self,
+                 cont_enc: str = 'StandardScaler',
+                 cat_enc: str = 'OneHotEncoder',
+                 multi_cat_enc: str = 'MultiLabelBinarizer',
+                 enc_params: Optional[dict] = None,
+                 weights: Optional[dict] = None,
+                 std_categoricals: bool = False,
+                 handle_missing: bool = False,
+                 y_transformer: Optional[str, Callable, type] = None,
+                 return_as: str = 'sparse',
+                 n_jobs: int = 1,
+                 verbose: Union[int, bool] = 0) -> None:
 
         super().__init__(cont_enc, cat_enc, multi_cat_enc, enc_params, std_categoricals, handle_missing)
         self.encoded_feature_names = None
@@ -54,32 +67,39 @@ class Encoder(EncoderMixin):
 
         self.set_encoder_y(y_transformer)
 
-    def set_encoder_y(self, func):
-        if func is not None:
+    def set_encoder_y(self, encoder: Optional[str, Callable, type]) -> None:
+        """Sets the encoder to be used for y.
+
+        :param encoder: a string to identify the encoder on the implemented ones or a encoder instance/class or a
+        function. If a function is passed and it implements and inverse transformation it should have an "inverse"
+        keyword argument in the function signature.
+        :return:
+        """
+        if encoder is not None:
             # if implements fit_transform, transform and inverse_transform set this as the transformer
             # else, if it is string search in __all_encoders__ dict for transformer
             # else, if it is a callable check if it has "inverse" in the signature
             # even if it doesn't have an inverse, assign it, but warn the user about this
-            if all(hasattr(func, attr) for attr in ('fit_transform', 'inverse_transform')):
-                self.encoder_y = func() if isinstance(func, type) else func
+            if all(hasattr(encoder, attr) for attr in ('fit_transform', 'inverse_transform')):
+                self.encoder_y = encoder() if isinstance(encoder, type) else encoder
 
-            elif isinstance(func, str):
+            elif isinstance(encoder, str):
                 try:
-                    self.encoder_y = __ALL_IMPLEMENTED_ENCODERS__[func]()
+                    self.encoder_y = __ALL_IMPLEMENTED_ENCODERS__[encoder]()
                 except KeyError:
-                    raise NotImplementedError(f'Transformer passed for y ({func}) is not implemented. Pass it as a '
+                    raise NotImplementedError(f'Transformer passed for y ({encoder}) is not implemented. Pass it as a '
                                               f'transformer instance instead.')
 
-            elif isfunction(func):
-                args = getfullargspec(func).args + getfullargspec(func).kwonlyargs
+            elif isfunction(encoder):
+                args = getfullargspec(encoder).args + getfullargspec(encoder).kwonlyargs
                 if 'inverse' in args:
-                    self.encoder_y = FunctionTransformer(func, partial(func, inverse=True))
+                    self.encoder_y = FunctionTransformer(encoder, partial(encoder, inverse=True))
                 else:
                     warnings.warn('Callable passed as y transformer does not provide an inverse transformation '
                                   '(boolean keyword argument "inverse" is not present in function signature). '
                                   'Inverse transformations will be identity (thus not transforming back to the '
                                   'original feature space.', stacklevel=2)
-                    self.encoder_y = FunctionTransformer(func)
+                    self.encoder_y = FunctionTransformer(encoder)
                 setattr(self.encoder_y, 'custom', True)
             else:
                 raise ValueError(f'"y" transformer passed is not applicable. Either pass a transformer, a callable or '
@@ -305,8 +325,11 @@ class Encoder(EncoderMixin):
     @check_options(remainder=('drop', 'passthrough'))
     @check_types(X=(DataFrame, Series, np.ndarray), y=(Series, np.ndarray, NoneType), exclude=(Iterable, NoneType),
                  feature_types=(dict, NoneType))
-    def fit_transform(self, X, y=None, feature_types=None, exclude=None, remainder='drop'):
-        """
+    def fit_transform(self, X, y=None,
+                      feature_types: Optional[Iterable] = None,
+                      exclude: Optional[Iterable] = None,
+                      remainder: str = 'drop'):
+        """todo finish doc and type hinting
 
         :param X:
         :param y:
@@ -339,7 +362,7 @@ class Encoder(EncoderMixin):
             return result, self._encode_y(y, fit=True, index=index)
 
     def transform(self, X, y=None):
-        """
+        """todo finish doc and type hinting
 
         :param X:
         :param y:
@@ -371,7 +394,7 @@ class Encoder(EncoderMixin):
             return result, self._encode_y(y, index=index)
 
     def fit(self, X, y=None, feature_types=None, exclude=None, remainder='drop'):
-        """
+        """todo finish doc and type hinting
 
         :param X:
         :param y:

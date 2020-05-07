@@ -1,5 +1,6 @@
 from itertools import chain
 from collections import ChainMap
+from typing import Optional
 import warnings
 
 import numpy as np
@@ -36,7 +37,7 @@ __ALL_IMPLEMENTED_ENCODERS__ = {**__CONT_ENCODERS__, **__ORD_ENCODERS__, **__CAT
 # todo check how set_params of BaseEstimator work! Override it to work here and in BaseEncoder
 class CategoricalEncoder(BaseEstimator):
     """
-
+    todo
     """
 
     __encoders__ = {'categorical': __CAT_ENCODERS__,
@@ -46,9 +47,14 @@ class CategoricalEncoder(BaseEstimator):
                               'multi_categorical': {'lowercase': False, 'analyzer': list,  # CountVectorizer
                                                     'input_type': 'string'}}               # FeatureHashing
 
-    def __init__(self, cat_enc='OneHotEncoder', multi_cat_enc='MultiLabelBinarizer', enc_params=None, sparse=True):
-        # filter enc_params to only have 'categorical' and 'multi_categorical'
-        # define default params
+    def __init__(self,
+                 cat_enc: str = 'OneHotEncoder',
+                 multi_cat_enc: str = 'MultiLabelBinarizer',
+                 enc_params: Optional[dict] = None,
+                 sparse: bool = True) -> None:
+
+        # todo filter enc_params to only have 'categorical' and 'multi_categorical'
+        #  define default params
         self.__chosen__ = {'categorical': cat_enc, 'multi_categorical': multi_cat_enc}
 
         self.encoder = None
@@ -56,7 +62,12 @@ class CategoricalEncoder(BaseEstimator):
         self._enc_params = enc_params or {}
         self._type = None
 
-    def get_params(self, deep=False):
+    def get_params(self, deep: bool = False) -> dict:
+        """Returns the parameters of this class
+
+        :param deep: todo
+        :return:
+        """
         return dict(cat_enc=self._chosen['categorical'], multi_cat_enc=self._chosen['multi_categorical'],
                     sparse=self._sparse, enc_params=self._enc_params)
 
@@ -68,8 +79,19 @@ class CategoricalEncoder(BaseEstimator):
         _expected_args = self.__encoders__[enc_type][self._chosen[enc_type]].__init__.__code__.co_varnames
         return {k: v for k, v in self._enc_params[enc_type].items() if k in _expected_args}
 
-    @check_types(params=(NoneType, dict))
-    def set_encoder(self, encoder, feature_type, params=None):
+    @check_types(params=(NoneType, dict), encoder=str, feature_type=str)
+    def set_encoder(self,
+                    encoder: str,
+                    feature_type: str,
+                    params: Optional[dict] = None) -> None:
+        """Defines one encoder (from the implemented ones) to be used for a specific feature_type (categorical or
+        multi_categorical)
+
+        :param encoder: String to choose the encoder from the implemented ones
+        :param feature_type: String to assign the chosen encoder to a specific feature_type
+        :param params: dictionary with parameters for the encoder passed
+        :return:
+        """
         assert feature_type in self.__encoders__, f'"feature_type" must be one of {list(self.__encoders__.keys())}.'
         assert encoder in self.__encoders__[feature_type], f'"encoder" of type {feature_type} must be one of ' \
                                                            f'{self.__encoders__[feature_type].keys()}.'
@@ -79,6 +101,12 @@ class CategoricalEncoder(BaseEstimator):
 
     @check_types(enc_params=(dict, NoneType))
     def set_encoder_params(self, enc_params):
+        """
+        todo to change for set_params once
+        :param enc_params:
+        :return:
+        """
+
         enc_params = enc_params or {}
         for enc_type, params in self.__default_enc_params__.items():
             assert isinstance(params, dict), 'Parameters for each "feature_type" must be passed as a dictionary.'
@@ -117,27 +145,57 @@ class CategoricalEncoder(BaseEstimator):
             X = X.toarray()
         return X
 
-    def fit_transform(self, X, y=None, **kwargs):
+    def fit_transform(self, X, y: Optional = None, **kwargs):
+        # todo complete type hinting
+        """Fits the encoder to X and outputs the transformation of X
+
+        :param X:
+        :param y: Not used. only included for sklearn compatibility
+        :param kwargs: Additional fit kwargs. Not used.
+        :return:
+        """
         X = self._construct_encoder(X)
         return self._construct_output(self.encoder.fit_transform(X))
 
-    def fit(self, X, y=None, **kwargs):
+    def fit(self, X, y: Optional = None, **kwargs) -> object:
+        """Fits the encoder to X
+
+        :param X:
+        :param y: Not used. only included for sklearn compatibility
+        :param kwargs: Additional fit kwargs. Not used.
+        :return: instance
+        """
         self.fit_transform(X, y=y, **kwargs)
         return self
 
     def transform(self, X, y=None, **kwargs):
+        """Transforms X with previously fitted encoder.
+
+        :param X:
+        :param y: Not used. only included for sklearn compatibility
+        :param kwargs: Additional fit kwargs. Not used.
+        :return:
+        """
         multi_cat = True if type(self.encoder) in self.__encoders__['multi_categorical'].values() else False
         X = self._reshape_inputs(X, multi_cat)
         return self._construct_output(self.encoder.transform(X))
 
     def inverse_transform(self, X):
+        """If encoder used provides an inverse transform, apply it to X
+
+        :param X:
+        :return:
+        """
         try:
             return self.encoder.inverse_transform(X)
         except AttributeError:
             raise NotImplementedError(f'Encoder {self.encoder.__name__} does not implement "inverse_transform" method.')
 
     @property
-    def feature_names(self):
+    def feature_names(self) -> np.ndarray:
+        """Depending on the encoder chosen retrieves the feature names
+        :return:
+        """
         if self.encoder is None:
             raise NotFittedError(f'Estimator is not yet fitted. Call "fit" or "fit_transform" methods first.')
 
@@ -159,6 +217,10 @@ __ALL_IMPLEMENTED_ENCODERS__['CategoricalEncoder'] = CategoricalEncoder
 
 
 class EncoderMixin:
+    """
+    Todo
+    """
+
     __encoders__ = {'continuous': __CONT_ENCODERS__,
                     'categorical': CategoricalEncoder,
                     'ordinal': __ORD_ENCODERS__}
@@ -176,8 +238,13 @@ class EncoderMixin:
                    multi_cat_enc=tuple(__MULTI_CAT_ENCODERS__))
     @check_types(cont_enc=str, cat_enc=str, multi_cat_enc=str, enc_params=(dict, NoneType), std_categoricals=bool,
                  handle_missing=bool)
-    def __init__(self, cont_enc='StandardScaler', cat_enc='OneHotEncoder', multi_cat_enc='MultiLabelBinarizer',
-                 enc_params=None, std_categoricals=False, handle_missing=False):
+    def __init__(self,
+                 cont_enc: str = 'StandardScaler',
+                 cat_enc: str = 'OneHotEncoder',
+                 multi_cat_enc: str = 'MultiLabelBinarizer',
+                 enc_params: Optional[dict] = None,
+                 std_categoricals: bool = False,
+                 handle_missing: bool = False) -> None:
 
         self.__chosen__ = {'continuous': cont_enc, 'categorical': cat_enc, 'multi_categorical': multi_cat_enc,
                            'ordinal': 'OrdinalEncoder'}
@@ -268,7 +335,15 @@ class EncoderMixin:
         return imputer
 
     @check_types(params=(NoneType, dict))
-    def set_encoder(self, encoder, feature_type, params=None):
+    def set_encoder(self, encoder: str, feature_type: str, params: Optional[dict] = None) -> None:
+        """Defines one encoder (from the implemented ones) to be used for a specific feature_type (categorical or
+        multi_categorical)
+
+        :param encoder: String to choose the encoder from the implemented ones
+        :param feature_type: String to assign the chosen encoder to a specific feature_type
+        :param params: dictionary with parameters for the encoder passed
+        :return:
+        """
         assert feature_type in self.__all_encoders__, f'"feature_type" must be one of {self.__all_encoders__}.'
         assert encoder in self.__all_encoders__[feature_type], f'"encoder" of type {feature_type} must be one of' \
                                                                f' {self.__all_encoders__[feature_type]}.'
@@ -277,7 +352,13 @@ class EncoderMixin:
         self.__chosen__[feature_type] = encoder
 
     @check_types(enc_params=(dict, NoneType))
-    def set_encoder_params(self, enc_params):
+    def set_encoder_params(self, enc_params: Optional[dict]):
+        """
+        todo to change for set_params once
+        :param enc_params:
+        :return:
+        """
+
         enc_params = enc_params or {}
         for enc_type, params in self.__default_enc_params__.items():
             assert isinstance(params, dict), 'Parameters for each "feature_type" must be passed as a dictionary.'
