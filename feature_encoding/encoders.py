@@ -17,11 +17,13 @@ from sklearn.compose import ColumnTransformer
 try:
     from .base import EncoderMixin, CategoricalEncoder, __ALL_IMPLEMENTED_ENCODERS__
     from ..utils.os_utl import check_options, check_types
-    from ..utils.generic_utl import duplicated, std_sparse
+    from ..utils.stats_utl import std_sparse
+    from ..utils.generic_utl import duplicated
 except (ImportError, ValueError):
     from feature_encoding.base import EncoderMixin, CategoricalEncoder, __ALL_IMPLEMENTED_ENCODERS__
     from utils.os_utl import check_options, check_types
-    from utils.generic_utl import duplicated, std_sparse
+    from utils.stats_utl import std_sparse
+    from utils.generic_utl import duplicated
 NoneType = type(None)
 
 

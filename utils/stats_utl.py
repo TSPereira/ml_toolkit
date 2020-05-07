@@ -1,5 +1,6 @@
 import numpy as np
 import warnings
+from typing import Union
 
 from .os_utl import check_types
 
@@ -44,3 +45,31 @@ def compute_mape(y, yhat, axis=0):
 
         return np.abs(y-yhat).mean(axis=axis)/y.mean(axis=axis)
     return (np.abs(y-yhat)/y).mean(axis=axis)
+
+
+def var_sparse(a: np.ndarray, axis: int = None) -> Union[np.ndarray, float]:
+    """Variance of sparse matrix a
+
+    :param np.ndarray|sp.sparse.crs_matrix a: Array or matrix to calculate variance of
+    :param int axis: axis along which to calculate variance
+
+    var = mean(a**2) - mean(a)**2
+    """
+    a_squared = a.copy()
+
+    if hasattr(a_squared, 'data') and (not isinstance(a_squared.data, memoryview)):
+        a_squared.data **= 2
+    else:
+        a_squared **= 2
+    return a_squared.mean(axis) - np.square(a.mean(axis))
+
+
+def std_sparse(a: np.ndarray, axis: int = None) -> Union[np.ndarray, float]:
+    """ Standard deviation of sparse matrix a
+
+    :param np.ndarray|sp.sparse.crs_matrix a: Array or matrix to calculate variance of
+    :param int axis: axis along which to calculate variance
+
+    std = sqrt(var(a))
+    """
+    return np.sqrt(var_sparse(a, axis))

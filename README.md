@@ -33,6 +33,18 @@ standardpackage
 |  .gitignore
 |  README.md
 |
+|--deep_learning
+|    pytorch
+|      optim
+|        optimizer
+|          *
+|        lr_scheduler
+|      utils
+|
+|--feature_encoding
+|    base
+|    encoders
+|
 |--time_series
 |    cross_validation
 |
@@ -44,6 +56,7 @@ standardpackage
 |    os_utl
 |    other_utl
 |    pdf_utl
+|    stats_utl
 |    text_utl
 | 
 |--webtools
