@@ -86,7 +86,7 @@ class Encoder(EncoderMixin):
     def _construct_encoder(self):
         _feature_types = {feat: type_ for type_, feats in self.feature_types.items() for feat in feats}
         _transformers = [(fname, self._encoders[_feature_types[fname]], [fname]) for fname in self.input_features
-                        if fname not in list(self._exclude)]
+                         if fname not in list(self._exclude)]
         _sparse = 1 if self._return_as == 'sparse' else 0
         self.encoder = ColumnTransformer(_transformers, self._remainder, sparse_threshold=_sparse, n_jobs=self._n_jobs,
                                          verbose=self._verbose)
@@ -269,24 +269,24 @@ class Encoder(EncoderMixin):
             raise NotImplementedError('Trying to transform "y" input, but no transformer for "y" was set.')
             # todo when no transform for y set and y is passed, find type of y and set standard encoder for that type
 
-        y_ = y.copy()
+        _y = y.copy()
 
         # if Encoder is not custom, prepare data for usual encoders
         feature_names = None
         if not hasattr(self.encoder_y, 'custom'):
-            if isinstance(y_, Series):
-                y_ = y_.to_frame(y_.name)
+            if isinstance(_y, Series):
+                _y = _y.to_frame(_y.name)
 
-            if isinstance(y_, DataFrame):
-                feature_names = np.asarray(y_.columns, dtype=object)
-                y_ = y_.values
+            if isinstance(_y, DataFrame):
+                feature_names = np.asarray(_y.columns, dtype=object)
+                _y = _y.values
 
             else:
-                if y_.ndim == 1:
-                    y_ = y_.reshape(-1, 1)
+                if _y.ndim == 1:
+                    _y = _y.reshape(-1, 1)
 
         # get values
-        output = self.encoder_y.fit_transform(y_) if fit else self.encoder_y.transform(y_)
+        output = self.encoder_y.fit_transform(_y) if fit else self.encoder_y.transform(_y)
 
         # get header
         try:
@@ -385,21 +385,20 @@ class Encoder(EncoderMixin):
 if __name__ == '__main__':
     from sklearn.model_selection import train_test_split
 
-    X_ = pd.read_csv('feature_encoding/sick_x.csv', index_col=0)
-    y_ = pd.read_csv('feature_encoding/sick_y.csv', index_col=0, squeeze=True)
-    X_.iloc[:, :] = np.where(X_.isnull(), np.nan, X_)
-    X_.drop(['TBG', 'TBG_measured'], axis=1, inplace=True)
+    data_X = pd.read_csv('feature_encoding/sick_x.csv', index_col=0)
+    data_y = pd.read_csv('feature_encoding/sick_y.csv', index_col=0, squeeze=True)
+    data_X.iloc[:, :] = np.where(data_X.isnull(), np.nan, data_X)
+    data_X.drop(['TBG', 'TBG_measured'], axis=1, inplace=True)
 
-    X_train, X_test, y_train, y_test = train_test_split(X_, y_, test_size=0.2, random_state=20)
+    X_train, X_test, y_train, y_test = train_test_split(data_X, data_y, test_size=0.2, random_state=20)
 
     enc = Encoder(handle_missing=True, return_as='dataframe', std_categoricals=False, cont_enc='StandardScaler',
                   weights={'age': 5, 'sex': 10}, n_jobs=1, verbose=1)
-    exclude = ['goitre']
-    feature_types = {'continuous': [],
-                     'categorical': [],
-                     'ordinal': ['pclass']}
+    exclusion_list = ['goitre']
+    feature_types_dict = {'continuous': [],
+                          'categorical': [],
+                          'ordinal': ['pclass']}
 
-    encoded = enc.fit_transform(X_train, y=y_train, exclude=exclude, remainder='drop', feature_types=feature_types)
+    encoded = enc.fit_transform(X_train, y=y_train, exclude=exclusion_list, remainder='drop',
+                                feature_types=feature_types_dict)
     enc_test = enc.transform(X_test, y_test)
-
-    print(1)
