@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 
-from utils.os_utils import check_types
+from ..utils.os_utils import check_types
 
 
 class TimeSeriesSplit:

@@ -1,18 +1,24 @@
 from html.parser import HTMLParser
 from urllib.request import urlopen, Request
+import requests
 from bs4 import BeautifulSoup
+from contextlib import suppress
+from itertools import cycle
+
 from ..utils.log_utils import printv
 
 
 class LinkParser(HTMLParser):
     """Class that improves HTMLParser to simplify html retrieval."""
 
-    def __init__(self, headers=None):
-        super().__init__()
-        if headers is None:
-            self.headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) '
+    __standard_headers__ = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) '
                                           'AppleWebKit/537.36 (KHTML, like Gecko) '
                                           'Chrome/39.0.2171.95 Safari/537.36'}
+
+    def __init__(self, headers=None, proxies=None):
+        super().__init__()
+        self.headers = headers if headers is not None else self.__standard_headers__
+        self.proxies = proxies
 
     def error(self, message):
         pass
@@ -41,7 +47,7 @@ class LinkParser(HTMLParser):
             return "", []
 
 
-def parse_url_page(url, verbose=0):
+def parse_url_page(url, headers=None, attempts=5, verbose=0):
     """Parse url into a BeautifulSoup object.
 
     :param string url: The url to be opened and parsed.
@@ -49,14 +55,12 @@ def parse_url_page(url, verbose=0):
     :return: Parsed html as a BeautifulSoup object.
     """
 
-    for _ in range(5):
-        try:
-            link_parser = LinkParser()
+    for i in range(attempts):
+        with suppress(Exception):
+            link_parser = LinkParser(headers=headers)
             data = link_parser.get_html(url, verbose=verbose)
-        except Exception:
-            pass
-        else:
             soup = BeautifulSoup(data, 'html.parser')
+
             printv('Parse successful', verbose=verbose)
             printv(soup.prettify(), level=2, verbose=verbose)
             return soup
