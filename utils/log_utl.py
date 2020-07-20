@@ -159,7 +159,7 @@ def printv(str_: str, verbose: int = 1, level: int = 1, ident: int = 0, title: b
     return
 
 
-def wrap_text(text: str, width: int, kwargs) -> str:
+def wrap_text(text: str, width: int, **kwargs) -> str:
     """Wrapper to wrap text and return a string
 
     :param text: Text to be wrapped
