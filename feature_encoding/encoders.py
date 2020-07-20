@@ -161,7 +161,7 @@ class Encoder(EncoderMixin):
         if (self._remainder == 'passthrough') and (self._return_as == 'sparse'):
             if set(self._exclude).intersection(self.feature_types['categorical']):
                 warnings.warn(wrap_text('Cannot return sparse output with non-numeric columns passed in exclude as '
-                              '"passthrough". Will return as dense array.', 160), stacklevel=2)
+                                        '"passthrough". Will return as dense array.', 160), stacklevel=2)
             self._return_as = 'array'
 
         # validate feature_types
@@ -181,18 +181,18 @@ class Encoder(EncoderMixin):
 
         _duplicated = duplicated(_registered_features)
         if _duplicated:
-            raise ValueError(wrap_text('Features {_duplicated} are defined more than once in "feature_types".', 160))
+            raise ValueError(wrap_text(f'Features {_duplicated} are defined more than once in "feature_types".', 160))
 
         _unregistered_features = set(self.input_features).difference(_registered_features)
         if _unregistered_features:
-            warnings.warn(wrap_text('Features {_unregistered_features} are not defined in "feature_types". '
-                          f'Estimator will try to encode these features according to their current dtype.', 160),
-                          stacklevel=2)
+            warnings.warn(wrap_text(f'Features {_unregistered_features} are not defined in "feature_types". '
+                                    f'Estimator will try to encode these features according to their current dtype.',
+                                    160), stacklevel=2)
 
         _dtypes_not_supported = list(df[_unregistered_features].select_dtypes(exclude=accepted).columns)
-        assert len(_dtypes_not_supported) == 0, wrap_text('Features {_dtypes_not_supported} are in a non-supported '
-                                                          'dtype. Convert them to one of {accepted} or define their '
-                                                          'type in "features_types" argument.', 160)
+        assert len(_dtypes_not_supported) == 0, wrap_text(f'Features {_dtypes_not_supported} are in a non-supported '
+                                                          f'dtype. Convert them to one of {accepted} or define their '
+                                                          f'type in "features_types" argument.', 160)
 
     def _set_feature_types(self, df):
         __mapped_types__ = {'continuous': 'float', 'categorical': 'str', 'ordinal': 'category'}
