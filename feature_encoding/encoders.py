@@ -17,11 +17,13 @@ from sklearn.compose import ColumnTransformer
 try:
     from .base import EncoderMixin, CategoricalEncoder, __ALL_IMPLEMENTED_ENCODERS__
     from ..utils.os_utl import check_options, check_types
+    from ..utils.log_utl import wrap_text
     from ..utils.stats_utl import std_sparse
     from ..utils.generic_utl import duplicated
 except (ImportError, ValueError):
     from feature_encoding.base import EncoderMixin, CategoricalEncoder, __ALL_IMPLEMENTED_ENCODERS__
     from utils.os_utl import check_options, check_types
+    from utils.log_utl import wrap_text
     from utils.stats_utl import std_sparse
     from utils.generic_utl import duplicated
 NoneType = type(None)
@@ -42,7 +44,7 @@ class Encoder(EncoderMixin):
                  weights: Optional[dict] = None,
                  std_categoricals: bool = False,
                  handle_missing: bool = False,
-                 y_transformer: Optional[str, Callable, type] = None,
+                 y_transformer: Optional[Union[str, Callable, type]] = None,
                  return_as: str = 'sparse',
                  n_jobs: int = 1,
                  verbose: Union[int, bool] = 0) -> None:
@@ -67,7 +69,7 @@ class Encoder(EncoderMixin):
 
         self.set_encoder_y(y_transformer)
 
-    def set_encoder_y(self, encoder: Optional[str, Callable, type]) -> None:
+    def set_encoder_y(self, encoder: Optional[Union[str, Callable, type]]) -> None:
         """Sets the encoder to be used for y.
 
         :param encoder: a string to identify the encoder on the implemented ones or a encoder instance/class or a
@@ -95,10 +97,10 @@ class Encoder(EncoderMixin):
                 if 'inverse' in args:
                     self.encoder_y = FunctionTransformer(encoder, partial(encoder, inverse=True))
                 else:
-                    warnings.warn('Callable passed as y transformer does not provide an inverse transformation '
-                                  '(boolean keyword argument "inverse" is not present in function signature). '
-                                  'Inverse transformations will be identity (thus not transforming back to the '
-                                  'original feature space.', stacklevel=2)
+                    warnings.warn(wrap_text('Callable passed as y transformer does not provide an inverse '
+                                            'transformation (boolean keyword argument "inverse" is not present in '
+                                            'function signature). Inverse transformations will be identity (thus not '
+                                            'transforming back to the original feature space.', 160), stacklevel=2)
                     self.encoder_y = FunctionTransformer(encoder)
                 setattr(self.encoder_y, 'custom', True)
             else:
@@ -110,8 +112,8 @@ class Encoder(EncoderMixin):
         _transformers = [(fname, self._encoders[_feature_types[fname]], [fname]) for fname in self.input_features
                          if fname not in list(self._exclude)]
         _sparse = 1 if self._return_as == 'sparse' else 0
-        self.encoder = ColumnTransformer(_transformers, self._remainder, sparse_threshold=_sparse, n_jobs=self._n_jobs,
-                                         verbose=self._verbose)
+        self.encoder = ColumnTransformer(_transformers, remainder=self._remainder, sparse_threshold=_sparse,
+                                         n_jobs=self._n_jobs, verbose=self._verbose)
 
     def _retrieve_features(self, arr, fit=False):
         # todo reformat to allow sparse inputs (use of SparseArray in pandas)
@@ -132,8 +134,8 @@ class Encoder(EncoderMixin):
             _not_in_features = self._exclude[~np.in1d(self._exclude, features)]
             if (_not_in_features.size > 0) and fit:
                 self._exclude = self._exclude[~np.in1d(self._exclude, _not_in_features)]
-                warnings.warn(f'Features/indexes {_not_in_features} in exclusion list do not exist in the dataset. '
-                              f'Exclusion list was updated.', stacklevel=2)
+                warnings.warn(wrap_text(f'Features/indexes {_not_in_features} in exclusion list do not exist in the '
+                                        f'dataset. Exclusion list was updated.', 160), stacklevel=2)
 
             features = features[~np.in1d(features, self._exclude)]
             if self._remainder == 'passthrough':
@@ -158,8 +160,8 @@ class Encoder(EncoderMixin):
         # validate return
         if (self._remainder == 'passthrough') and (self._return_as == 'sparse'):
             if set(self._exclude).intersection(self.feature_types['categorical']):
-                warnings.warn('Cannot return sparse output with non-numeric columns passed in exclude as '
-                              '"passthrough". Will return as dense array.', stacklevel=2)
+                warnings.warn(wrap_text('Cannot return sparse output with non-numeric columns passed in exclude as '
+                              '"passthrough". Will return as dense array.', 160), stacklevel=2)
             self._return_as = 'array'
 
         # validate feature_types
@@ -179,18 +181,18 @@ class Encoder(EncoderMixin):
 
         _duplicated = duplicated(_registered_features)
         if _duplicated:
-            raise ValueError(f'Features {_duplicated} are defined more than once in "feature_types".')
+            raise ValueError(wrap_text('Features {_duplicated} are defined more than once in "feature_types".', 160))
 
         _unregistered_features = set(self.input_features).difference(_registered_features)
         if _unregistered_features:
-            warnings.warn(f'Features {_unregistered_features} are not defined in "feature_types". '
-                          f'Estimator will try to encode these features according to their current dtype.',
+            warnings.warn(wrap_text('Features {_unregistered_features} are not defined in "feature_types". '
+                          f'Estimator will try to encode these features according to their current dtype.', 160),
                           stacklevel=2)
 
         _dtypes_not_supported = list(df[_unregistered_features].select_dtypes(exclude=accepted).columns)
-        assert len(_dtypes_not_supported) == 0, f'Features {_dtypes_not_supported} are in a non-supported dtype. ' \
-                                                f'Convert them to one of {accepted} or define their type ' \
-                                                f'in "features_types" argument.'
+        assert len(_dtypes_not_supported) == 0, wrap_text('Features {_dtypes_not_supported} are in a non-supported '
+                                                          'dtype. Convert them to one of {accepted} or define their '
+                                                          'type in "features_types" argument.', 160)
 
     def _set_feature_types(self, df):
         __mapped_types__ = {'continuous': 'float', 'categorical': 'str', 'ordinal': 'category'}
@@ -376,13 +378,14 @@ class Encoder(EncoderMixin):
 
         X, features, index = self._retrieve_features(X, fit=False)
         if not set(self.input_features).issubset(features):
-            raise KeyError('Features in array are not the same as in the dataset used to "fit" the estimator. '
-                           'Check the features used during "fit" in attribute "input_features".')
+            raise KeyError(wrap_text('Features in array are not the same as in the dataset used to "fit" the '
+                                     'estimator. Check the features used during "fit" in attribute "input_features".',
+                                     160))
 
         features = features[np.in1d(features, self.input_features)]
         if not all(np.equal(features, self.input_features)):
-            warnings.warn('Dataset passed is not sorted in the same order as the dataset used to "fit". '
-                          'The dataset will be sorted according to the input_features.', stacklevel=2)
+            warnings.warn(wrap_text('Dataset passed is not sorted in the same order as the dataset used to "fit". '
+                                    'The dataset will be sorted according to the input_features.', 160), stacklevel=2)
 
         X = X[self.input_features]
         result = self._apply_weights(self.encoder.transform(X))

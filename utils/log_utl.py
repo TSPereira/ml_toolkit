@@ -1,5 +1,6 @@
 import sys
 from time import time
+from textwrap import wrap
 from contextlib import ContextDecorator, redirect_stdout
 
 from .os_utl import check_types
@@ -156,3 +157,14 @@ def printv(str_: str, verbose: int = 1, level: int = 1, ident: int = 0, title: b
         print(2 * ident * ' ' + str_, **kwargs)
 
     return
+
+
+def wrap_text(text: str, width: int, kwargs) -> str:
+    """Wrapper to wrap text and return a string
+
+    :param text: Text to be wrapped
+    :param width: width to wrap to
+    :param kwargs: additional keyword arguments for textwrap.wrap function
+    :return: string to be printed
+    """
+    return '\n'.join(wrap(text, width, **kwargs))
