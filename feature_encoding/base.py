@@ -136,7 +136,7 @@ class CategoricalEncoder(BaseEstimator):
     @staticmethod
     def _reshape_inputs(X, multi_cat):
         return list(map(lambda x: [str(x)] if not isinstance(x, list) else [str(y) for y in x], X)) if multi_cat else \
-            np.asarray(X).reshape(-1, 1)
+            np.asarray(X, dtype=str).reshape(-1, 1)
 
     def _construct_output(self, X):
         if self._sparse and not sp_sparse.issparse(X):
