@@ -29,6 +29,12 @@ except (ImportError, ValueError):
 NoneType = type(None)
 
 
+def _identity(X):
+    """The identity function.
+    """
+    return X
+
+
 class Encoder(EncoderMixin):
     """
     todo
@@ -107,6 +113,10 @@ class Encoder(EncoderMixin):
                 raise ValueError(f'"y" transformer passed is not applicable. Either pass a transformer, a callable or '
                                  f'one of {__ALL_IMPLEMENTED_ENCODERS__}.')
 
+        else:
+            self.encoder_y = FunctionTransformer(_identity)
+            setattr(self.encoder_y, 'custom', True)
+
     def _construct_encoder(self):
         _feature_types = {feat: type_ for type_, feats in self.feature_types.items() for feat in feats}
         _transformers = [(fname, self._encoders[_feature_types[fname]], [fname]) for fname in self.input_features
@@ -143,9 +153,9 @@ class Encoder(EncoderMixin):
 
         if fit:
             self.input_features = features
-            self.input_index = arr.index.values
+            self.input_index = arr.index
 
-        return arr[features].copy(), features, arr.index.values
+        return arr[features].copy(), features, arr.index
 
     def _validate_nulls(self, X):
         if not self._handle_missing:
@@ -173,10 +183,10 @@ class Encoder(EncoderMixin):
                                                                                       f'be either a list or a tuple'
         self._feature_types = types or {}
 
-    def _feature_types_sanity_check(self, df, accepted):
+    def _feature_types_sanity_check(self, df):
+        __accepted_dtypes__ = ('O', 'category', 'float', 'int', 'int64', 'bool')
+
         # Remove registered features non existing in df and perform sanity checks
-        self._feature_types = {k: [feat for feat in v if feat in self.input_features]
-                               for k, v in self._feature_types.items()}
         _registered_features = list(chain.from_iterable(self._feature_types.values())) if self._feature_types else []
 
         _duplicated = duplicated(_registered_features)
@@ -186,37 +196,48 @@ class Encoder(EncoderMixin):
         _unregistered_features = set(self.input_features).difference(_registered_features)
         if _unregistered_features:
             warnings.warn(wrap_text(f'Features {_unregistered_features} are not defined in "feature_types". '
-                                    f'Estimator will try to encode these features according to their current dtype.',
-                                    160), stacklevel=2)
+                          f'Estimator will try to encode these features according to their current dtype.', 160),
+                          stacklevel=2)
 
-        _dtypes_not_supported = list(df[_unregistered_features].select_dtypes(exclude=accepted).columns)
+        _dtypes_not_supported = list(df[_unregistered_features].select_dtypes(exclude=__accepted_dtypes__).columns)
         assert len(_dtypes_not_supported) == 0, wrap_text(f'Features {_dtypes_not_supported} are in a non-supported '
-                                                          f'dtype. Convert them to one of {accepted} or define their '
-                                                          f'type in "features_types" argument.', 160)
+                                                          f'dtype. Convert them to one of {__accepted_dtypes__} or '
+                                                          f'define their type in "features_types" argument.', 160)
 
-    def _set_feature_types(self, df):
+    @staticmethod
+    def _apply_feature_types(X, feature_types):
         __mapped_types__ = {'continuous': 'float', 'categorical': 'str', 'ordinal': 'category'}
         __types_mapping__ = {'str': 'O'}
-        __accepted_dtypes__ = ('O', 'category', 'float', 'int', 'int64')
-        self._feature_types_sanity_check(df, __accepted_dtypes__)
 
         # convert features registered if needed
-        for dtype, cols in self._feature_types.items():
+        for dtype, cols in feature_types.items():
             new_type = __mapped_types__[dtype]
-            _cols = list(df.loc[:, cols].select_dtypes(exclude=[__types_mapping__.get(new_type, new_type)]).columns)
+            _cols = list(X.loc[:, cols].select_dtypes(exclude=[__types_mapping__.get(new_type, new_type)]).columns)
             if len(_cols) > 0:
-                df.loc[:, _cols] = df.loc[:, _cols].astype(new_type)
+                X.loc[:, _cols] = X.loc[:, _cols].astype(new_type)
 
-        for col in df.select_dtypes(include='category').columns:
-            df[col].cat.reorder_categories(df[col].dtype.categories, ordered=True, inplace=True)
+        for col in X.select_dtypes(include='category').columns:
+            X[col].cat.reorder_categories(X[col].dtype.categories, ordered=True, inplace=True)
 
         # Make sure object columns only contain string
-        df[df.select_dtypes(include='O').columns] = df.select_dtypes(include='O').astype('str')
+        X[X.select_dtypes(include='O').columns] = X.select_dtypes(include='O').astype('str')
+        return X
 
-        # save the feature types
-        self.feature_types = {'continuous': list(df.select_dtypes(include=['int', 'int64', 'float']).columns),
-                              'categorical': list(df.select_dtypes(include='O').columns),
-                              'ordinal': list(df.select_dtypes(include='category').columns)}
+    def _set_feature_types(self, df, fit=False):
+        if fit:
+            self._feature_types = {k: [feat for feat in v if feat in self.input_features]
+                                   for k, v in self._feature_types.items()}
+            self._feature_types_sanity_check(df)
+            df = self._apply_feature_types(df, self._feature_types)
+
+            # save the feature types
+            self.feature_types = {'continuous': list(df.select_dtypes(include=['int', 'int64', 'float']).columns),
+                                  'categorical': list(df.select_dtypes(include=['O', 'bool']).columns),
+                                  'ordinal': list(df.select_dtypes(include='category').columns)}
+        else:
+            df = self._apply_feature_types(df, self.feature_types)
+
+        return df
 
     def _get_encoded_feature_names(self):
         if self.encoder is None:
@@ -289,10 +310,6 @@ class Encoder(EncoderMixin):
         return X
 
     def _encode_y(self, y, fit=False, index=None):
-        if self.encoder_y is None:
-            raise NotImplementedError('Trying to transform "y" input, but no transformer for "y" was set.')
-            # todo when no transform for y set and y is passed, find type of y and set standard encoder for that type
-
         _y = y.copy()
 
         # if Encoder is not custom, prepare data for usual encoders
@@ -346,7 +363,7 @@ class Encoder(EncoderMixin):
         self._validate(X, feature_types)
 
         X, _, index = self._retrieve_features(X, fit=True)
-        self._set_feature_types(X)
+        X = self._set_feature_types(X, fit=True)
 
         self._construct_encoder()
         result = self.encoder.fit_transform(X)
@@ -387,7 +404,7 @@ class Encoder(EncoderMixin):
             warnings.warn(wrap_text('Dataset passed is not sorted in the same order as the dataset used to "fit". '
                                     'The dataset will be sorted according to the input_features.', 160), stacklevel=2)
 
-        X = X[self.input_features]
+        X = self._set_feature_types(X[self.input_features])
         result = self._apply_weights(self.encoder.transform(X))
         result = self._construct_output(result, self.encoded_feature_names, index)
 

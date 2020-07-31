@@ -75,10 +75,6 @@ class CategoricalEncoder(BaseEstimator):
     def _chosen(self):
         return self.__chosen__
 
-    def _get_encoder_params(self, enc_type):
-        _expected_args = self.__encoders__[enc_type][self._chosen[enc_type]].__init__.__code__.co_varnames
-        return {k: v for k, v in self._enc_params[enc_type].items() if k in _expected_args}
-
     @check_types(params=(NoneType, dict), encoder=str, feature_type=str)
     def set_encoder(self,
                     encoder: str,
@@ -112,7 +108,7 @@ class CategoricalEncoder(BaseEstimator):
             assert isinstance(params, dict), 'Parameters for each "feature_type" must be passed as a dictionary.'
             self._enc_params[enc_type] = dict(ChainMap(enc_params.get(enc_type) or {},
                                                        self._enc_params.get(enc_type) or {},
-                                                       self.__default_enc_params__[enc_type]))
+                                                       self.__default_enc_params__.get(enc_type) or {}))
 
     def _construct_encoder(self, X):
         multi_cat = any(isinstance(val, list) for val in np.asarray(X).reshape(-1, ))
@@ -123,7 +119,7 @@ class CategoricalEncoder(BaseEstimator):
 
         # get parameters for encoder chosen
         self.set_encoder_params(None)
-        params = self._get_encoder_params(self._type)
+        params = self._enc_params[self._type]
         if (self._chosen[self._type] == 'FeatureHashing') and ('n_features' not in params):
             params['n_features'] = len(set(chain.from_iterable(X)))
             warnings.warn(f'FeatureHashing needs to set a defined number of features. None was explicitly passed. To '
@@ -231,7 +227,8 @@ class EncoderMixin:
 
     __default_enc_params__ = {'continuous': {},
                               'categorical': {'handle_unknown': 'ignore'},
-                              'multi_categorical': {},
+                              'multi_categorical': {'lowercase': False, 'analyzer': list,  # CountVectorizer
+                                                    'input_type': 'string'},               # FeatureHashing,
                               'ordinal': {}}
 
     @check_options(cont_enc=tuple(__CONT_ENCODERS__), cat_enc=tuple(__CAT_ENCODERS__),
