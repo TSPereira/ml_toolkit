@@ -1,7 +1,7 @@
 ## Branches and flow organization
 StandardPackage repository is organized according to the diagram below.
 
-![](readme_pictures/git_flow.png)
+![](images/func_doc/git_flow.png)
 
 This diagram shows how branches connect to each other over time and what are they meant for.
 At the core of the process there are two main, infinite in time, branches: `master` and `develop`.   
@@ -75,7 +75,7 @@ Up to now, it has been described how the main repo work. In this chapter there�
 
 In order to keep the main repo organized and to avoid that everybody’s feature branches clutter the repo, most collaborative users will need to create a fork of the main repo (here on known as the ‘upstream’). Admins might work directly on the main repo, provided they always keep it tidy and well maintained.
 
-![](readme_pictures/multiple_repos.png)
+![](images/func_doc/multiple_repos.png)
 
 After forking the repo, the user (David for example) will have an exact copy of the repo up to that time (`origin`). Each user only needs to keep the `develop` branch from the main repo. Any `feature`, `release` or `hotfix` branch can be discarded in the user repo, as these represent temporary changes being done by the repo admins. `master` branch should not be different in the user repo than on the `upstream`, so it suffices to use the `upstream` one. Within their own repo, each user can work with their own practices. However, keep in mind the following points:
 * Each user will add their own features to their own `develop` branch, but all of the users `develop` branches will eventually be merged together, so try to keep the commit history clean and informative.
@@ -87,16 +87,16 @@ After forking the repo, the user (David for example) will have an exact copy of 
 
 &nbsp;
 ##### Summary of interactions between upstream and forked repo
-![Summary of interactions between upstream and forked repo](readme_pictures/interactions_summary.png)
+![Summary of interactions between upstream and forked repo](images/func_doc/interactions_summary.png)
 
 &nbsp;
 ### How to fork repository in BitBucket
 1.	Go to the main repository page: [StandardPackage](https://git.mobi.mobicorp.ch/projects/TAG/repos/standardpackage/browse)
 1.	On the left navigation bar choose `Create fork`<br>
-![](readme_pictures/fork_nav_bar.png)  
+![](images/func_doc/fork_nav_bar.png)  
 1.	On the next page choose your own space in the `Project` field and a name for your own repo (keep the original name is possible, but make sure you can distinguish them). Keep the `Enable fork syncing` selected if you want common branches to be sync automatically from the `upstream` repo into your own repo (see downsides in the next topic). Finally hit `Fork repository` and the fork will be completed.
 
-![](readme_pictures/fork_window.png)
+![](images/func_doc/fork_window.png)
   
 &nbsp;
 ### Clone the repository into your local machine
@@ -107,7 +107,7 @@ Once you forked the `upstream` repository you can now clone your own version int
 1.	Paste the address  
 1.	Choose the directory where to clone the repo into. It is recommended you create a new empty folder for this such that you get a final path like: `<general path>/<new_empty_folder>/<repo_name_folder>`
 
-![](readme_pictures/intellij_clone.png)
+![](images/func_doc/intellij_clone.png)
 <br><sub>Note: `<repo_name_folder>` will be automatically created from the clone command and will be added to the directory folder once you paste the address.</sub>
 
 This structure will allow you to use this repo as a library later and import files/functions with the syntax: `import <repo_name_folder>` or `from <repo_name_folder> import <something>`
@@ -123,14 +123,14 @@ To connect multiple repos within the same project in IntelliJ start by:
 1.  Cloning your own repo normally and open the respective project in IntelliJ.  
 1.  Then, on the top navigation bar go to `VCS > Git > Remotes…`  
 1.  Add the “clone” address as a new “remote”.  
-![](readme_pictures/intellij_remotes_1.png)  
+![](images/func_doc/intellij_remotes_1.png)  
 1.  Name your remote repos (for sake of standardization between all users, you should name the main repo as `upstream` and your own repo as `origin`).    
-![](readme_pictures/intellij_remotes_2.png)  
+![](images/func_doc/intellij_remotes_2.png)  
 <br>
 Now, from the dropdown box on the bottom right of your IDE you can quickly access all branches in both repos (and also your own local branches)
 
-![](readme_pictures/intellij_remotes_4.png)  
-![](readme_pictures/intellij_remotes_3.png)  
+![](images/func_doc/intellij_remotes_4.png)  
+![](images/func_doc/intellij_remotes_3.png)  
 
 &nbsp;
 ### Collaborate with work
@@ -144,13 +144,13 @@ Say you have recently created a code file that adds a new generic functionality 
 
     You should now have something like the following, where in the local branches you can see your new branch and at the right of its name which remote branch it is tracking. The dropdown box value (when not clicked) should be showing the name of your local branch.
 
-    ![](readme_pictures/collaborate_1.png)
+    ![](images/func_doc/collaborate_1.png)
 
 **2 - Update your origin and local branch with latest `upstream` changes**
 * Navigating to `VCS > Git > Pull` and select the correct repo and branch to pull from as below. 
 
-    ![](readme_pictures/collaborate_2.png)
-    ![](readme_pictures/collaborate_3.png)
+    ![](images/func_doc/collaborate_2.png)
+    ![](images/func_doc/collaborate_3.png)
 
     This procedure ensure you are starting to work from the most updated version of the `develop` branch, which might already include changes since you last got it (If you have the `Enable fork sync` option this should already be up-to-date)
 
@@ -158,7 +158,7 @@ Say you have recently created a code file that adds a new generic functionality 
 * Make sure you have your `develop` branch selected when following the images below
 * Select the `New Branch` option and give it a name so you can identify it as the local version of this branch (`Feature1` in the pictures)
 
-    ![](readme_pictures/collaborate_4.png)
+    ![](images/func_doc/collaborate_4.png)
 
 **4 - Create your feature code and commit it**
 
@@ -168,12 +168,12 @@ Say you have recently created a code file that adds a new generic functionality 
 * Add a Commit Message
 * Check the `No fast forward` checkbox (to ensure traceability)
 
-    ![](readme_pictures/collaborate_5.png)
+    ![](images/func_doc/collaborate_5.png)
  
     The version control log shows this merge now (`Version Control/Log` in the bottom navigation pane in IntelliJ). 
     It is possible to see that a new branch named ‘Feature1’ was created, it had just one commit and then it was merged back into develop with the commit message ‘Adding Feature1’.
     
-    ![](readme_pictures/collaborate_6.png)
+    ![](images/func_doc/collaborate_6.png)
  
 **6 - Share your code with the `upstream` repo**
 * From your `develop` branch, pull any new changes from the `upstream` `develop` branch
@@ -201,7 +201,7 @@ In IntelliJ, the setup of the package as a library is done as follows:
 3.	Click the `+` on top and choose `Java` (don’t worry about this)
 4.	Select the parent folder of your repo (not the folder with your repo name, but its parent!)
 5.	Click `Ok` and you are good to go
-<br>![](readme_pictures/using_as_library.png)
+<br>![](images/func_doc/using_as_library.png)
  
 &nbsp;
 #### When deploying a project

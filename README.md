@@ -28,7 +28,7 @@ Try that any new "functionality tool" that uses this package only use functions 
 
 ## Repository Structure
 ```
-standardpackage
+support_toolkit
 |  .gitignore
 |  README.md
 |
