@@ -417,25 +417,3 @@ class Encoder(EncoderMixin):
         """
         self.fit_transform(X, y, feature_types, exclude, remainder)
         return self
-
-
-if __name__ == '__main__':
-    from sklearn.model_selection import train_test_split
-
-    data_X = pd.read_csv('feature_encoding/sick_x.csv', index_col=0)
-    data_y = pd.read_csv('feature_encoding/sick_y.csv', index_col=0, squeeze=True)
-    data_X.iloc[:, :] = np.where(data_X.isnull(), np.nan, data_X)
-    data_X.drop(['TBG', 'TBG_measured'], axis=1, inplace=True)
-
-    X_train, X_test, y_train, y_test = train_test_split(data_X, data_y, test_size=0.2, random_state=20)
-
-    enc = Encoder(handle_missing=True, return_as='dataframe', std_categoricals=False, cont_enc='StandardScaler',
-                  weights={'age': 5, 'sex': 10}, n_jobs=1, verbose=1)
-    exclusion_list = ['goitre']
-    feature_types_dict = {'continuous': [],
-                          'categorical': [],
-                          'ordinal': ['pclass']}
-
-    encoded = enc.fit_transform(X_train, y=y_train, exclude=exclusion_list, remainder='drop',
-                                feature_types=feature_types_dict)
-    enc_test = enc.transform(X_test, y_test)
