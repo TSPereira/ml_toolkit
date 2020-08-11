@@ -1,4 +1,5 @@
-import torch, math
+import torch
+import math
 from torch.optim.optimizer import Optimizer
 
 

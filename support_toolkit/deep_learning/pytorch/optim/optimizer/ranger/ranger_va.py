@@ -21,7 +21,6 @@
 import math
 import torch
 from torch.optim.optimizer import Optimizer
-from ..utils import required
 
 
 class RangerVA(Optimizer):

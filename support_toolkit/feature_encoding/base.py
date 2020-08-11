@@ -14,11 +14,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction import FeatureHasher
 from sklearn.exceptions import NotFittedError
 
-try:
-    from ..utils.os_utl import check_options, check_types
-except (ImportError, ValueError):
-    from utils.os_utl import check_options, check_types
-NoneType = type(None)
+from ..utils.os_utl import check_options, check_types, NoneType
 
 
 __CONT_ENCODERS__ = {'MinMaxScaler':   MinMaxScaler,
