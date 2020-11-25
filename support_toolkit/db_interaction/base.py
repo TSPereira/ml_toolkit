@@ -9,9 +9,9 @@ import pandas as pd
 # noinspection SqlNoDataSourceInspection,SqlDialectInspection
 class BaseActor(ABC):
     """Class to manipulate a DataBase"""
-    _flavour = 'NoFlavorSpecifiedDB'
+    _flavor = 'NoFlavorSpecifiedDB'
 
-    def __init__(self, name: str, user: str, password: str, active_schema: Optional[str] = None, **kwargs) -> None:
+    def __init__(self, name: str, user: str, password: str, schema: Optional[str] = None, **kwargs) -> None:
         """Instance constructor. Establishes the connection parameters to the DB and checks if there are any tables
         already there and current schemas
 
@@ -26,11 +26,11 @@ class BaseActor(ABC):
 
         self.name = name
         self.user = user
-        self.password = password
+        self._password = password
         self._connection_test()
 
-        if active_schema is not None:
-            self.set_active_schema(active_schema)
+        if schema is not None:
+            self.set_active_schema(schema)
 
         self.current_column_types = dict()
         self.tables = None

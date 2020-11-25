@@ -25,6 +25,7 @@ class PostGreSQL(BaseActor):
     def __init__(self, user, password, name=None, host=None, port=None, **kwargs):
         self.host = host
         self.port = port
+        self._flavor = 'PostGreSQL'
 
         super().__init__(name, user, password, **kwargs)
         self.tables = self.get_table_names()
@@ -37,7 +38,7 @@ class PostGreSQL(BaseActor):
         :return: None
         """
         if not self._is_connection_open:
-            self._conn = psycopg2.connect(dbname=self.name, user=self.user, password=self.password,
+            self._conn = psycopg2.connect(dbname=self.name, user=self.user, password=self._password,
                                           host=self.host, port=self.port)
             with super().connection_manager():
                 yield
@@ -82,16 +83,16 @@ class PostGreSQL(BaseActor):
         return list(self.query(sql)['table_schema'])
 
     @check_types(table_name=str, limit=(int, NoneType))
-    def get_table(self, table_name, limit=None, alternative_schema=None):
+    def get_table(self, table_name, limit=None, schema=None):
         """Extracts a table from the database with table_name. If limit is provided it will only extract a
         specific amount of rows from the top of the database
 
         :param table_name: name of the table to extract
         :param limit: amount of rows to extract
-        :param alternative_schema: If the table to access is not in the active schema
+        :param schema: If the table to access is not in the active schema
         :return: pandas DataFrame with the query result
         """
-        table_name = f'"{table_name}"' if alternative_schema is None else f'"{alternative_schema}"."{table_name}"'
+        table_name = f'"{table_name}"' if schema is None else f'"{schema}"."{table_name}"'
         if limit is None:
             return super().get_table(table_name)
 

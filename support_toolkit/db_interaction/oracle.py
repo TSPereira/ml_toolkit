@@ -49,7 +49,7 @@ class OracleManager(BaseActor):
         :return: None
         """
         if not self._is_connection_open:
-            self._conn = cx_Oracle.connect(f'{self.user}/{self.password}@{self.name}')
+            self._conn = cx_Oracle.connect(f'{self.user}/{self._password}@{self.name}')
             if self.active_schema is not None:
                 self._conn.current_schema = self.active_schema
 
@@ -58,6 +58,9 @@ class OracleManager(BaseActor):
         else:
             yield
 
+    def get_schemas(self):
+        return list(self.query('SELECT DISTINCT owner FROM all_tables')['OWNER'])
+
     def set_active_schema(self, schema: str) -> None:
         """Sets the active schema in the database. Any query will be done within the active schema without need
         to specifically identify the schema on the query
@@ -65,8 +68,7 @@ class OracleManager(BaseActor):
         :param schema: string name of the schema to set active
         :return:
         """
-        all_schemas = list(self.query('SELECT DISTINCT owner FROM all_tables')['OWNER'])
-        if schema in all_schemas:
+        if schema in self.get_schemas():
             super().set_active_schema(schema)
         else:
             warnings.warn(f'\n[{self._flavor}] Passed schema "{schema}" does not exist in database "{self.name}" or '
