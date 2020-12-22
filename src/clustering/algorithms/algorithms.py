@@ -16,9 +16,9 @@ from sklearn.exceptions import NotFittedError
 from scipy.spatial import ConvexHull
 
 from .snn import SNN
-from src.estimators import WeightedEstimator
-from src.utils.os_utils import filter_kwargs, check_types
-from src.utils.log_utils import printv, print_progress_bar
+from ..estimators import WeightedEstimator
+from ...utils.os_utl import filter_kwargs, check_types
+from ...utils.log_utl import printv, print_progress_bar
 
 
 _methods = dict()

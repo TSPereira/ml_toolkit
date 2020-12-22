@@ -1,7 +1,6 @@
 import numpy as np
 
 from itertools import combinations
-from functools import partial
 from joblib import Parallel, delayed
 
 from sklearn.utils import check_random_state
@@ -9,7 +8,7 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score
 from sklearn.metrics.pairwise import pairwise_distances
 
-from src.utils.os_utils import filter_kwargs
+from ..utils.os_utl import filter_kwargs
 
 
 # ############################################### FUNCTIONS #################################################

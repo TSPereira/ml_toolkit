@@ -8,8 +8,8 @@ from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score
 from sklearn.preprocessing import MinMaxScaler
 
 from .metrics import gap_statistic, silhouette_score_block
-from .utils.os_utils import check_types, filter_kwargs
-from .utils.log_utils import print_progress_bar, printv
+from ..utils.os_utl import check_types, filter_kwargs
+from ..utils.log_utl import print_progress_bar, printv
 
 
 """
