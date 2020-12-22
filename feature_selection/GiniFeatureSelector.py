@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from ..utils import print_progress_bar, printv
+from ..utils.log_utils import print_progress_bar, printv
 
 
 class GiniFeatureSelector(object):

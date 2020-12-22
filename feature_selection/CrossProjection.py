@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from ..feature_selection.scatter_separability_criterion import scatter_separability_score
-from ..utils import printv
+from ..utils.log_utils import printv
 
 
 class CrossProjection(object):
