@@ -12,7 +12,7 @@ be tested on review.
 
 ## Package Main Structure
 ```
-support_toolkit
+src
 |--db_interaction
 |--deep_learning
 |--feature_encoding
