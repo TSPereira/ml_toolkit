@@ -1,8 +1,9 @@
 import os
 import shutil
 import math
+from inspect import signature
 from uuid import UUID, uuid4
-from typing import Tuple, Iterable
+from typing import Tuple, Iterable, Callable
 
 from decorator import decorator
 NoneType = type(None)
@@ -69,6 +70,18 @@ def check_options(**options):
         return f(*args, **kwds)
 
     return _check
+
+
+def filter_kwargs(d: dict, func: Callable) -> dict:
+    """Filter dictionary items to only contain arguments of the func passed
+
+    :param d: dictionary to be filtered
+    :param func: callable (function or method) to get arguments to filter for
+    :return: filtered dictionary
+    """
+
+    acceptable = signature(func).parameters.keys()
+    return {key: value for key, value in d.items() if key in acceptable}
 
 
 def append_to_filename(filename: str, to_append: str, ext: str = None, sep: str = '_', remove_ext: bool = False) -> str:
