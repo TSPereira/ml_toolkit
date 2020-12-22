@@ -4,6 +4,7 @@ channels:
 dependencies:
   - beautifulsoup4=4.9.1
   - decorator=4.4.2
+  - matplotlib=3.3.2
   - numpy=1.18.5
   - packaging=20.4
   - pandas=1.1.0

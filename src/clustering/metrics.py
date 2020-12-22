@@ -1,8 +1,7 @@
-import numpy as np
-
 from itertools import combinations
 from joblib import Parallel, delayed
 
+import numpy as np
 from sklearn.utils import check_random_state
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score
