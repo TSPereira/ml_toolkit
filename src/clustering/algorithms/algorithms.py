@@ -1,12 +1,12 @@
-import warnings
-from operator import attrgetter
-from itertools import cycle
 from copy import deepcopy
 from inspect import isclass
+from itertools import cycle
+from operator import attrgetter
+import warnings
 
+import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.colors import TABLEAU_COLORS
-import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.cluster import KMeans, MiniBatchKMeans, DBSCAN, OPTICS, AgglomerativeClustering
 from sklearn.utils.validation import check_is_fitted
@@ -16,33 +16,18 @@ from sklearn.exceptions import NotFittedError
 from scipy.spatial import ConvexHull
 
 from .snn import SNN
-from ..estimators import WeightedEstimator
+from .. import WeightedEstimator, Metrics
 from ...utils.os_utl import filter_kwargs, check_types
 from ...utils.log_utl import printv, print_progress_bar
 
 
-_methods = dict()
+_methods = dict(kmeans=KMeans, minibatchkmeans=MiniBatchKMeans, dbscan=DBSCAN, optics=OPTICS, snn=SNN)
 try:
     from hdbscan import HDBSCAN
-
-    class HDBSCAN(HDBSCAN):
-        # todo
-        #  compute_inertias
-        #  add n_clusters
-        ...
-
     _methods['hdbscan'] = HDBSCAN
 except ModuleNotFoundError:
     warnings.warn('HDBSCAN could not be imported. To add it to the options install it in your environment.',
                   stacklevel=2)
-
-
-class KMeans(KMeans):
-    ...
-
-
-class MiniBatchKMeans(MiniBatchKMeans):
-    ...
 
 
 class AgglomerativeClustering(AgglomerativeClustering):
@@ -78,36 +63,19 @@ class AgglomerativeClustering(AgglomerativeClustering):
         plt.show()
 
 
-class DBSCAN(DBSCAN):
-    def fit(self, x, y=None, sample_weight=None):
-        super().fit(x, y, sample_weight)
-        # todo
-        #  compute_inertias
-        #  add n_clusters
-
-    def compute_inertias(self, x, sample_weight=None):
-        # todo
-        centroids = np.vstack([np.mean(x[self.labels_ == cl], axis=0) for cl in np.unique(self.labels_)])
-
-        # find centroids
-        # calculate distances to centroids
-        ...
-
-
-_methods = {**_methods, **dict(kmeans=KMeans, minibatchkmeans=MiniBatchKMeans, dbscan=DBSCAN, optics=OPTICS, snn=SNN)}
-
-
 class Cluster:
     __methods = _methods
     __predictor = KNeighborsClassifier
 
     @check_types(estimate_best_k=bool, max_k=int, verbose=int)
-    def __init__(self, method='minibatchkmeans', predictor=None, estimate_best_k=False, max_k=50, verbose=0,  **kwargs):
+    def __init__(self, method='minibatchkmeans', predictor=None, estimate_best_k=False, max_k=50, metrics=None,
+                 verbose=0, **kwargs):
         # kwargs can be passed as method__argname or predictor__argname
         self.c_model, self.p_model = self._validate_args(method, predictor, kwargs)
         self.est = None
         self.max_k = max_k
         self.estimate_best_k = estimate_best_k
+        self.metrics = Metrics(metrics)
         self.verbose = verbose
 
     def _validate_args(self, method, predictor, kwargs):
@@ -153,12 +121,11 @@ class Cluster:
         self.p_model.fit(x_train, y_train)
 
         # eval
-        yhat = self.p_model.predict(x_test)
-        yhat_train = self.p_model.predict(x_train)
-        self._predictor_metrics = dict(test=dict(classification_report=classification_report(y_test, yhat),
-                                                 confusion_matrix=confusion_matrix(y_test, yhat)),
-                                       train=dict(classification_report=classification_report(y_train, yhat_train),
-                                                  confusion_matrix=confusion_matrix(y_train, yhat_train)))
+        yhat_train, yhat = self.p_model.predict(x_train), self.p_model.predict(x_test)
+        self._predictor_metrics = dict(train=dict(classification_report=classification_report(y_train, yhat_train),
+                                                  confusion_matrix=confusion_matrix(y_train, yhat_train)),
+                                       test=dict(classification_report=classification_report(y_test, yhat),
+                                                 confusion_matrix=confusion_matrix(y_test, yhat)))
 
     def find_best_k(self, x, n_votes=3):
         mdls = dict()
@@ -207,6 +174,9 @@ class Cluster:
         self.fit(x)
         return self.predict(x)
 
+    def get_metrics(self, x, **kwargs):
+        return self.metrics.get_metrics(x, self.c_model, **kwargs)
+
     def plot(self, x, labels=None, density=True, density_metric='euclidean', show=True, s=15, fontsize=12,
              show_areas=False, figsize=(30, 15)):
         if x.shape[1] > 2:
@@ -222,7 +192,7 @@ class Cluster:
         dens = []
         if density:
             from ..metrics import cluster_density
-            dens = cluster_density(x, labels, density_metric)[0]
+            _, dens = cluster_density(x, labels, density_metric)
 
         # plot clusters
         for k, color in zip(np.unique(labels), cycle(TABLEAU_COLORS)):

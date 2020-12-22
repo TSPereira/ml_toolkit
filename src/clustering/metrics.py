@@ -23,7 +23,7 @@ def cluster_density(x, labels, metric='euclidean', n_pts=-1):
         max_per_label.append(mean_dist.max())
 
     dens = 1 - np.array(dens)/max(max_per_label)
-    return np.round(dens, 3), np.unique(labels)
+    return np.unique(labels), np.round(dens, 3)
 
 
 def local_cluster_density(x, labels, metric='euclidean', n_pts=10):
@@ -233,7 +233,7 @@ class Metrics:
     # todo inter cluster distance (distance between closest points in different clusters)
 
     def __init__(self, metrics=None):
-        self.metrics = self._check_metrics(metrics)
+        self._metrics = self._check_metrics(metrics)
         self.results = dict()
 
     def _check_metrics(self, metrics):
@@ -251,8 +251,8 @@ class Metrics:
         # return instances of the metrics
         return [self.__metrics[e] if isinstance(e, str) else e for e in metrics]
 
-    def get_metrics(self, data, model, decimals=4, **kwargs):
-        for func in self.metrics:
+    def get_metrics(self, x, model, decimals=4, **kwargs):
+        for func in self._metrics:
             _kwargs = filter_kwargs(kwargs, func)
             name = func.__name__
 
@@ -260,8 +260,8 @@ class Metrics:
                 _kwargs['n_pts'] = -1
 
             try:
-                self.results[name] = np.round((func(data, model.labels_, **_kwargs) if func != gap_statistic else
-                                               func(model.n_clusters, model.inertia_, data.shape, **_kwargs)),
+                self.results[name] = np.round((func(x, model.labels_, **_kwargs) if func != gap_statistic else
+                                               func(model.n_clusters, model.inertia_, x.shape, **_kwargs)),
                                               decimals)
             except Exception as e:
                 print(f'Could not compute {name} due to exception: {e}.')
