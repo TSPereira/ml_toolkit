@@ -1,3 +1,3 @@
 from .estimators import WeightedEstimator
 from .metrics import Metrics
-from .algorithms import Cluster, AgglomerativeClustering, SNN
+from .algorithms.algorithms import Cluster, AgglomerativeClustering, SNN
