@@ -26,7 +26,7 @@ try:
     from hdbscan import HDBSCAN
     _methods['hdbscan'] = HDBSCAN
 except ModuleNotFoundError:
-    warnings.warn('HDBSCAN could not be imported. To add it to the options install it in your environment.',
+    warnings.warn('\nHDBSCAN could not be imported. To add it to the options install it in your environment.',
                   stacklevel=2)
 
 
