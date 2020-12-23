@@ -1,16 +1,19 @@
 import warnings
+from functools import partial
+from itertools import starmap
 from contextlib import contextmanager
 
+import pandas as pd
 import pandas.io.sql
 import psycopg2
+from psycopg2.extras import execute_values
 import io
 
-from .base import BaseActor
-from ..utils.os_utl import check_types, NoneType
+from .base import BaseActor, prepare_table_name, join_schema_to_table_name
+from ..utils.os_utl import check_types, check_options, NoneType
 
 
-# noinspection SqlResolve,SqlNoDataSourceInspection,SqlDialectInspection
-class PostGreSQL(BaseActor):
+class PostgreSQLManager(BaseActor):
     """This class provides methods to interact with an Oracle Database
 
     Arguments:
@@ -28,62 +31,140 @@ class PostGreSQL(BaseActor):
         self._flavor = 'PostGreSQL'
 
         super().__init__(name, user, password, **kwargs)
-        self.tables = self.get_table_names()
+        self._update_table_names()
 
-    @contextmanager
-    def connection_manager(self):
-        """Creates a connection manager to handle the connection to the oracle database.
-        This will close the connection with need to call 'connection.close()'
+    @prepare_table_name
+    def append_to_table(self, table_name, table, schema=None):
+        """Uploads a table with the name passed to the DataBase. If a table with same name already exists, it is
+        entirely replaced by the new one. Attributes with table_names and table_schemas are updated
 
+        :param string table_name: table name to upload to in DataBase
+        :param pandas.DataFrame table: table to upload
+        :param schema: Optional. Schema to look for the table in
         :return: None
         """
-        if not self._is_connection_open:
-            self._conn = psycopg2.connect(dbname=self.name, user=self.user, password=self._password,
-                                          host=self.host, port=self.port)
-            with super().connection_manager():
-                yield
+
+        if table_name not in self.tables:
+            self.upload_table(table_name, table)
 
         else:
-            yield
+            self._update_table_schema(table_name, table)
 
-    def set_active_schema(self, schema):
-        """Sets the active schema in the database. Any query will be done within the active schema without need
-        to specifically identify the schema on the query
+            # add missing columns to table and commit it
+            self._commit_table(table_name, self._add_missing_columns_to_table(table_name, table))
 
-        :param schema: string name of the schema to set active
-        :return:
+    def create_schema(self, schema_name, if_not_exists=True):
+        if_not_exists = 'IF NOT EXISTS' if if_not_exists else ''
+        self.execute(f'CREATE SCHEMA {if_not_exists} {schema_name};')
+
+    @check_types(table_name=(str, tuple, list, set, dict))
+    def create_table(self, table_name, schema=None):
+        schema = schema or self.active_schema or 'public'
+
+        if isinstance(table_name, str):
+            table_name = [table_name]
+
+        if isinstance(table_name, dict):
+            # todo add variables definition option
+            raise NotImplementedError()
+
+        else:
+            names = list(map(partial(join_schema_to_table_name, schema=schema), table_name))
+            sqls = tuple(f"""CREATE TABLE {name} ();""" for name in names)
+
+        for sql in sqls:
+            self.execute(sql)
+
+        self._update_table_names()
+
+    @prepare_table_name
+    def drop_primary_key(self, table_name, schema=None):
+        """Drops current primary key
+
+        :param string table_name: table name to drop primary key from
+        :param schema: Optional. Schema to look for the table in
+        :return: None
         """
-        if schema in self.get_schemas():
-            super().set_active_schema(schema)
-            self.action(f'ALTER USER {self.user} SET search_path TO "{self.active_schema}"')
-            self.tables = self.get_table_names()
-        else:
-            warnings.warn(f'\nPassed schema "{schema}" does not exist in database "{self.name}" or current user '
-                          f'might not have access privileges to it. Schema was not changed.'
-                          f'\nCurrent schema: {self.active_schema}', stacklevel=2)
 
-    def get_table_names(self):
-        """Lists the tables existing in the active schema. If no active schema is set it will list all tables in
-        the database to which the user has access
+        constraints = self.get_constraints(table_name, contype='p')['conname'].to_list()
+        if constraints:
+            sql = f'ALTER TABLE {table_name} DROP CONSTRAINT IF EXISTS {constraints[0]};'
+            self.execute(sql)
 
-        :return: list of table names
-        """
-        sql = "SELECT DISTINCT table_schema, table_name FROM information_schema.tables " \
-              "WHERE table_schema !~ 'pg_catalog|information_schema'"
-        schemas_and_tables = self.query(sql)
-        if self.active_schema is not None:
-            return list(schemas_and_tables.loc[schemas_and_tables['table_schema'] == self.active_schema, 'table_name'])
+    def drop_schema(self, schema_name, cascade=False, if_exists=True):
+        if_exists = "IF EXISTS" if if_exists else ''
+        cascade = 'CASCADE' if cascade else ''
+
+        if isinstance(schema_name, (tuple, list, set)):
+            drop_schema = self.active_schema in schema_name
+            schema_name = ','.join(schema_name)
         else:
-            return list(schemas_and_tables['table_schema'].str.cat(schemas_and_tables['table_name'], sep='.'))
+            drop_schema = self.active_schema == schema_name
+
+        try:
+            self.execute(f'DROP SCHEMA {if_exists} {schema_name} {cascade};')
+
+        except Exception as e:
+            raise e
+
+        else:
+            if drop_schema:
+                self.set_active_schema(None)
+
+    @check_types(table_name=(str, tuple, list, set))
+    def drop_table(self, table_name, schema=None, cascade=False, if_exists=True):
+        if_exists = "IF EXISTS" if if_exists else ''
+        cascade = 'CASCADE' if cascade else ''
+
+        if isinstance(table_name, str):
+            table_name = [table_name]
+
+        schema = schema or self.active_schema or 'public'
+        table_name = ','.join(map(partial(join_schema_to_table_name, schema=schema), table_name))
+
+        self.execute(f'DROP TABLE {if_exists} {table_name} {cascade};')
+        self._update_table_names()
+
+    @check_options(contype=('all', 'p'))
+    @prepare_table_name
+    def get_constraints(self, table_name, schema=None, contype='all'):
+        schema, table_name = table_name.split('.')
+
+        sql = f"SELECT con.* FROM pg_catalog.pg_constraint con " \
+              f"INNER JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid " \
+              f"INNER JOIN pg_catalog.pg_namespace nsp ON nsp.oid = connamespace " \
+              f"WHERE nsp.nspname = '{schema}' AND rel.relname = '{table_name}';"
+        constraints = self.query(sql)
+
+        if contype == 'all':
+            return constraints
+        elif contype in ('p', 'primary'):
+            return constraints.loc[constraints['contype'] == 'p']
+
+    @prepare_table_name
+    def get_primary_key_columns(self, table_name, schema=None):
+        key = self.get_constraints(table_name, schema, 'p')['conkey']
+        cols = self.get_table_schema(table_name, schema)['column_name']
+        cols.index += 1
+        return cols.loc[key.to_list()[0]].to_list() if not key.empty else []
 
     def get_schemas(self):
         """Finds available schemas in the database"""
-        sql = "SELECT DISTINCT table_schema FROM information_schema.tables " \
-              "WHERE table_schema !~ 'pg_catalog|information_schema'"
-        return list(self.query(sql)['table_schema'])
+        sql = "SELECT schema_name FROM information_schema.schemata " \
+              "WHERE schema_name !~ 'pg_catalog|information_schema|pg_toast'"
+        return list(self.query(sql)['schema_name'])
+
+    @prepare_table_name
+    def get_table_schema(self, table_name, schema=None):
+        schema, name = table_name.split('.')
+
+        sql = f"SELECT column_name, data_type FROM information_schema.columns " \
+              f"where table_name = '{name}' and table_schema = '{schema}'; "
+        return self.query(sql)
 
     @check_types(table_name=str, limit=(int, NoneType))
-    def get_table(self, table_name, limit=None, schema=None):
+    @prepare_table_name
+    def read_table(self, table_name, limit=None, schema=None):
         """Extracts a table from the database with table_name. If limit is provided it will only extract a
         specific amount of rows from the top of the database
 
@@ -92,378 +173,225 @@ class PostGreSQL(BaseActor):
         :param schema: If the table to access is not in the active schema
         :return: pandas DataFrame with the query result
         """
-        table_name = f'"{table_name}"' if schema is None else f'"{schema}"."{table_name}"'
-        if limit is None:
-            return super().get_table(table_name)
 
+        return super().read_table(table_name) if limit is None else \
+            self.query(f'SELECT * FROM {table_name} LIMIT {limit}')
+
+    def set_active_schema(self, schema=None):
+        """Sets the active schema in the database. Any query will be done within the active schema without need
+        to specifically identify the schema on the query
+
+        :param schema: string name of the schema to set active
+        :return:
+        """
+
+        if schema is None:
+            super().set_active_schema(schema)
+
+        elif schema in self.get_schemas():
+            super().set_active_schema(schema)
+            self.execute(f'ALTER USER {self.user} SET search_path TO "{self.active_schema}"')
         else:
-            query = f'SELECT * FROM {table_name} LIMIT {limit}'
-            return self.query(query)
+            warnings.warn(f'\nPassed schema "{schema}" does not exist in database "{self.name}" or current user '
+                          f'might not have access privileges to it. Schema was not changed.'
+                          f'\nCurrent schema: {self.active_schema}', stacklevel=2)
 
-    def _upload_table(self, table_name, table):
-        """Uploads a table with the name passed to the DataBase. If a table with same name already exists, it is
-        entirely replaced by the new one. Attributes with table_names and table_schemas are updated
+        self._update_table_names()
 
-        :param string table_name: table name to upload to in DataBase
-        :param pandas.DataFrame table: table to upload
+    @prepare_table_name
+    def set_primary_key(self, table_name, id_column, schema=None):
+        """Adds a primary key to the table
+
+        :param table_name: table to add the primary key to
+        :param id_column: column to be defined as primary key. Column must exist in table, otherwise it will
+        raise an error
+        :param schema: Optional. Schema to look for the table in
         :return: None
         """
 
-        with self.connection_manager():
-            self._cur.execute(f"DROP TABLE IF EXISTS {table_name};")
-            # self._compare_column_types(table_name, table)
+        # drop any existing primary key
+        self.drop_primary_key(table_name)
 
+        # if more than one column is passed join them as a single string
+        if isinstance(id_column, (list, tuple, set)):
+            id_column = ', '.join(id_column)
+
+        sql = f'ALTER TABLE {table_name} ADD PRIMARY KEY ({id_column}); '
+        self.execute(sql)
+
+    @prepare_table_name
+    def upload_table(self, table_name, table, schema=None):
+        # drop table if exists, create the new table schema, upload the table
+        self.drop_table(table_name, if_exists=True)
+        self._update_table_schema(table_name, table)
+        self._commit_table(table_name, table)
+
+    @check_types(id_column_pkey=(NoneType, str, list, tuple, set))
+    @prepare_table_name
+    def upsert(self, table_name, table, id_column_pkey=None, schema=None):
+        """If table already exists in DataBase, appends new values and on conflict on values in the primary key value,
+        replaces the existing values in DataBase with the new ones. Else, creates the table.
+
+        :param table_name: table name to upload
+        :param table: table to upload
+        :param id_column_pkey: column name to be used as primary key
+        :return: None
+        """
+
+        if table_name not in self.tables:
+            self.upload_table(table_name, table)
+
+        else:
+            table_columns = table.columns.str.lower()
+
+            # checks on id_column_pkey
+            old_constraints = self.get_constraints(table_name, contype='p')['conname'].to_list()
+            if id_column_pkey is not None:
+                _check = (id_column_pkey not in table_columns) if isinstance(id_column_pkey, str) else \
+                    any(col not in table_columns for col in id_column_pkey)
+                if _check:
+                    raise ValueError('Primary key specified is not in table.')
+
+            elif (id_column_pkey is None) and (not old_constraints):
+                raise KeyError('No primary key was passed and none is set. '
+                               'A primary key must exist to allow an upsert.')
+
+            # update table schema
+            self._update_table_schema(table_name, table)
+
+            # upsert
+            with self._temporary_primary_key(id_column_pkey, table_name) as new_key:
+                # Add any missing col to table to be uploaded and sort accordingly
+                table = self._add_missing_columns_to_table(table_name, table)
+
+                # Create sql query and string of values to pass
+                columns = ', '.join([f'{col}' for col in table.columns])
+                excluded = ', '.join(f'EXCLUDED.{col}' for col in table.columns)
+                sql = f"""INSERT INTO {table_name} ({columns}) VALUES %s
+                          ON CONFLICT ({', '.join(new_key)})
+                          DO UPDATE SET ({columns}) = ({excluded});"""
+
+                values = list(table.to_records(index=False))
+                with self.connection_manager():
+                    execute_values(self._cur, sql, values)
+                    self._conn.commit()
+
+    def _add_missing_columns_to_table(self, table_name, table):
+        cur_cols = self.get_table_schema(table_name)['column_name']
+
+        _table = table.copy()
+        _table.columns = _table.columns.str.lower()
+        _table[list(set(cur_cols).difference(table.columns.str.lower()))] = None
+        return _table[cur_cols]
+
+    def _commit_table(self, table_name, table):
+        with self.connection_manager():
             values = io.StringIO(table.to_csv(header=False, index=False, na_rep=''))
-            sql = f"""COPY "{table_name}" FROM STDIN \
-                            WITH CSV \
-                            DELIMITER AS ',' \
-                            NULL AS ''; """
+            sql = f"COPY {table_name} FROM STDIN WITH CSV DELIMITER AS ',' NULL AS '';"
 
             self._cur.copy_expert(sql, values)
             self._conn.commit()
+            self._update_table_names()
 
-            # self.update_existing_table_names()
+    def _open_connection(self):
+        self._conn = psycopg2.connect(dbname=self.name, user=self.user, password=self._password,
+                                      host=self.host, port=self.port)
+        super()._open_connection()
+
+    @contextmanager
+    def _temporary_primary_key(self, new_key, table_name):
+        old_key = self.get_primary_key_columns(table_name)
+        new_key = list(new_key) if not isinstance(new_key, str) else [new_key]
+
+        if new_key != old_key:
+            self.set_primary_key(table_name, new_key)
+
+        yield new_key
+
+        # reset key
+        if not old_key:
+            self.drop_primary_key(table_name)
+        elif new_key != old_key:
+            try:
+                self.set_primary_key(table_name, old_key)
+            except psycopg2.Error as e:
+                self.set_primary_key(table_name, new_key)
+                print(f'{e}Could not reset old primary key ({old_key}). New primary key ({new_key}) kept.')
+
+    def _update_table_names(self):
+        sql = "SELECT DISTINCT table_schema, table_name FROM information_schema.tables " \
+              "WHERE table_schema !~ 'pg_catalog|information_schema'"
+        schemas_and_tables = self.query(sql)
+        if self.active_schema is not None:
+            filt = schemas_and_tables['table_schema'] == self.active_schema
+            self.tables = list(schemas_and_tables.loc[filt, 'table_name'])
+        else:
+            self.tables = list(schemas_and_tables['table_schema'].str.cat(schemas_and_tables['table_name'], sep='.'))
+
+    def _update_table_schema(self, table_name, table):
+        current_schema = self.get_table_schema(table_name)
+
+        new_schema = pd.io.sql.get_schema(table, table_name)
+        new_schema = new_schema.replace('"', '').replace('INTEGER', 'bigint')
+
+        if not current_schema.empty:
+            current_schema.columns = ['var', 'type']
+            current_schema.set_index('var', inplace=True)
+            new_schema = _convert_table_schema_to_df(new_schema)
+            new_schema = _compare_table_schema(current_schema, new_schema)
+
+            if new_schema is None:
+                return
+
+            def formatter(name, coltype, action):
+                sql = f'{action.upper()} COLUMN {name} '
+                sql += coltype if action == 'add' else f'TYPE {coltype}'
+                return sql
+
+            cols_schema = ',\n '.join(starmap(formatter, new_schema.to_records()))
+            new_schema = f"""ALTER TABLE {table_name} {cols_schema}; """
+
+        self.execute(new_schema)
 
 
-# Todo complete methods for uploading/upserting
+def _convert_table_schema_to_df(schema):
+    """Converts a table schema to DataFrame format
 
-#     def _change_column_types(self, table_name, table):
-#         """Updates existing table schema with changes
-#
-#         :param string table_name: table name to update schema
-#         :param pandas.DataFrame table: table with new schema
-#         :return: None
-#         """
-#
-#         _flag = 0
-#         if not self._is_connection_open:
-#             _flag = 1
-#             self._db_connect_open()
-#
-#         cols_schema = ',\n '.join(table.apply(lambda x: f"""ALTER COLUMN {x.name} TYPE {x['type']}""", axis=1))
-#         sql = f"""ALTER TABLE "{table_name}" {cols_schema}; """
-#         self.action(sql)
-#
-#         # Update current table schemas
-#         self.current_column_types[table_name] = table.copy(deep=True)
-#
-#         if _flag == 1:
-#             self._db_connect_close()
-#
-#     def _compare_column_types(self, table_name, table):
-#         """Compare column types of a table to be uploaded/upserted with a possibly already existing one
-#
-#         :param string table_name: table to compare columns
-#         :param pandas.DataFrame table: new table to be uploaded/upserted
-#         :return: None
-#         """
-#
-#         schema = pd.io.sql.get_schema(table, table_name, con=self._conn).replace('INTEGER', 'bigint')
-#
-#         if table_name not in self.tables:
-#             self.action(schema)
-#             self.tables = self._get_existing_table_names()
-#
-#         if table_name in self.current_column_types:
-#             new_schema = eval_table_schema(self.current_column_types[table_name], convert_table_schema_to_df(schema))
-#
-#             if new_schema is not None:
-#                 self._change_column_types(table_name, new_schema)
-#
-#     def _get_current_column_types(self):
-#         """Query's the Database for the current schemas for each table and stores them as a dictionary of pandas
-#         DataFrames in the format: {'table_name': DataFrame}, where each DataFrame has a single column 'type' and its
-#         index is composed of the column names.
-#
-#         :return dict _cur_col_types: Dictionary with each table schema in DataBase
-#         """
-#
-#         _flag = 0
-#         if not self._is_connection_open:
-#             _flag = 1
-#             self._db_connect_open()
-#
-#         _cur_col_types = dict()
-#         for table_name in self.tables:
-#             sql = f"""SELECT column_name, data_type FROM information_schema.columns where
-#                         table_name = '{table_name}'; """
-#             table = self.query(sql)
-#
-#             table['column_name'] = table['column_name'].apply(lambda x: f""" "{x}" """)
-#             table.rename({'column_name': 'var', 'data_type': 'type'}, axis=1, inplace=True)
-#             table.set_index('var', inplace=True)
-#             _cur_col_types[table_name] = table
-#
-#         if _flag == 1:
-#             self._db_connect_close()
-#
-#         return _cur_col_types
-#
-#     def _get_existing_table_names(self):
-#         """Query's the Database for the current existing tables and returns them as a list of strings
-#
-#         :return list _tables: List with all table names in DataBase
-#         """
-#
-#         _flag = 0
-#         if not self._is_connection_open:
-#             _flag = 1
-#             self._db_connect_open()
-#
-#         self._cur.execute("SELECT relname FROM pg_class WHERE relkind='r' AND relname !~ '^(pg_|sql_)';")
-#         _tables = [table[0] for table in self._cur.fetchall()]
-#
-#         if _flag == 1:
-#             self._db_connect_close()
-#
-#         return _tables
-#
-#     def _upload_table(self, table_name, table):
-#         """Uploads a table with the name passed to the DataBase. If a table with same name already exists, it is
-#         entirely replaced by the new one. Attributes with table_names and table_schemas are updated
-#
-#         :param string table_name: table name to upload to in DataBase
-#         :param pandas.DataFrame table: table to upload
-#         :return: None
-#         """
-#
-#         self._db_connect_open()
-#
-#         self._cur.execute(f"DROP TABLE IF EXISTS {table_name};")
-#         self._compare_column_types(table_name, table)
-#
-#         values = io.StringIO(table.to_csv(header=False, index=False, na_rep=''))
-#         sql = f"""COPY "{table_name}" FROM STDIN \
-#                         WITH CSV \
-#                         DELIMITER AS ',' \
-#                         NULL AS ''; """
-#
-#         self._cur.copy_expert(sql, values)
-#         self._conn.commit()
-#
-#         self.update_existing_table_names()
-#         self._db_connect_close()
-#
+    :param string schema: PostGreSQL schema
+    :return pandas.DataFrame: DataFrame with type of each column in schema
+    """
 
-#
-#     def append_to_table(self, table_name, table):
-#         """Append table passed to existing table in DataBase. If the table doesn´t exist, create a new one. If there
-#         is a primary key set, it will return an error on duplicates conflict. Otherwise appends.
-#         If there are new columns on the table to append, error will be raised: todo check if columns are the same
-#
-#         :param string table_name: table name to upload to in DataBase
-#         :param pandas.DataFrame table: table to upload
-#         :return: None
-#         """
-#
-#         # todo add parameter id_column_pkey
-#         # Should try to set primary key before adding to table to guarantee no duplicates
-#
-#         if table_name not in self.tables:
-#             self._upload_table(table_name, table)
-#
-#         else:
-#             self._db_connect_open()
-#
-#             # todo check if columns are the same. if new columns add and update schema
-#
-#             # Check if schema is the same. If needed change for upcasted types
-#             self._compare_column_types(table_name, table)
-#
-#             values = io.StringIO(table.to_csv(index=False, na_rep=''))
-#             columns = ', '.join([f'"{col}"' for col in table.columns])
-#
-#             sql = f"""COPY "{table_name}" ({columns}) \
-#                     FROM STDIN \
-#                     WITH CSV \
-#                     HEADER \
-#                     DELIMITER AS ',' \
-#                     NULL AS ''; """
-#
-#             self._cur.copy_expert(sql, values)
-#             self._conn.commit()
-#
-#             self._db_connect_close()
-#
-#     def drop_primary_key(self, table_name):
-#         """Drops current primary key
-#
-#         :param string table_name: table name to drop primary key from
-#         :return: None
-#         """
-#
-#         sql = f'ALTER TABLE {table_name} DROP CONSTRAINT IF EXISTS {table_name}_pkey;'
-#         self.action(sql)
-#
-#     def get_entire_database(self):
-#         """Loads entire database to python environment
-#
-#         :return: Dictionary of format {'table_name': table}
-#         """
-#
-#         tables = {table_name: self.get_table(table_name) for table_name in self.tables}
-#         return tables
-#
-#     def set_primary_key(self, table_name, id_column):
-#         """Adds a primary key to the table
-#
-#         :param string table_name: table to add the primary key to
-#         :param string id_column: column to be defined as primary key. Column must exist in table, otherwise it will
-#         raise an error
-#         :return: None
-#         """
-#
-#         sql = f'ALTER TABLE {table_name} ADD PRIMARY KEY ("{id_column}"); '
-#
-#         _flag = 0
-#         if not self._is_connection_open:
-#             _flag = 1
-#             self._db_connect_open()
-#
-#         self.drop_primary_key(table_name)
-#         self.action(sql)
-#
-#         if _flag == 1:
-#             self._db_connect_close()
-#
-#     def update_existing_table_names(self):
-#         """Fetches existing table names and schemas from DataBase
-#
-#         :return: None
-#         """
-#
-#         self.tables = self._get_existing_table_names()
-#         self.current_column_types = self._get_current_column_types()
-#
-#     def upload_table(self, table_name, table, mode='append_to_table', **kwargs):
-#         """Uploads table to Database. Depending on the mode chosen it will replace, append or upsert.
-#
-#         :param string table_name: table name to upload
-#         :param pandas.DataFrame table: table to upload
-#         :param string mode: mode how to upload. default: 'append_to_table'. One of ['append_to_table', 'replace',
-#         'upsert']
-#         'replace' - if table already exists in DataBase, drops it and uploads the new one. Else, creates the table
-#         'append_to_table' - if table already exists in DataBase, appends the new values to existing table. Else,
-#         creates the table
-#         'upsert' - if table already exists in DataBase, appends new values and on conflict on values in the primary
-#         key value, replaces the existing values in DataBase with the new ones. Else, creates the table.
-#         :param kwargs: if mode == 'upsert' then it is necessary to indicate what is the primary key to resolve
-#         conflicts on. This information is passed as an argument of format 'id_column_pkey = {column_name}'.
-#         {column_name} must be an existing column of the table to upsert to
-#         :return: None
-#         """
-#
-#         funcs = {'append_to_table': self.append_to_table, 'replace': self._upload_table, 'upsert': self.upsert}
-#         assert mode in funcs.keys(), \
-#             KeyError(f'"mode" must be one of the following: {", ".join(str(x) for x in funcs.keys())}. Default is '
-#                      f'"append_to_table".')
-#
-#         if mode == 'upsert':
-#             funcs[mode](table_name, table, **kwargs)
-#         else:
-#             funcs[mode](table_name, table)
-#
-#     def upsert(self, table_name, table, id_column_pkey=None):
-#         """If table already exists in DataBase, appends new values and on conflict on values in the primary key value,
-#         replaces the existing values in DataBase with the new ones. Else, creates the table.
-#
-#         :param string table_name: table name to upload
-#         :param pandas.DataFrame table: table to upload
-#         :param string id_column_pkey: column name to be used as primary key
-#         :return: None
-#         """
-#
-#         if table_name not in self.tables:
-#             self._upload_table(table_name, table)
-#
-#         else:
-#             assert id_column_pkey is not None, KeyError('"id_column_pkey" value needed to perform an upsert.')
-#             assert id_column_pkey in table.columns, \
-#                 KeyError('"id_column_pkey" must be one of the columns of the passed "table".')
-#
-#             self._db_connect_open()
-#             # todo check if columns are the same. if new columns add and update schema
-#
-#             # Check if schema is the same. If needed change for upcasted types
-#             self._compare_column_types(table_name, table)
-#
-#             # todo save existing primary keys; also, id_column_pkey becomes optional. if none passed check if
-#             #  there is any existing key and use it
-#             # Set new primary key
-#             self.set_primary_key(table_name, id_column_pkey)
-#
-#             # Create sql query and string of values to pass
-#             sql = create_update_query(table_name, table, id_column_pkey)
-#             self.action(sql)
-#
-#             # todo reset primary key to original
-#             # Remove primary key
-#             self.drop_primary_key(table_name)
-#             self._db_connect_close()
-#
-#
-# # noinspection SqlDialectInspection,SqlNoDataSourceInspection
-# def create_update_query(table_name, table, id_column):
-#     """This function creates an upsert query which replaces existing data based on primary key conflicts
-#
-#     :param string table_name: string holding table name to upsert to
-#     :param pandas DataFrame table: table to upsert to DB
-#     :param string id_column: primary_key column name
-#     :return string: query to send to DB
-#     """
-#
-#     columns = ', '.join([f'"{col}"' for col in table.columns])
-#     values = str(list(table.itertuples(index=False, name=None))).strip('[]')
-#     constraint = f'"{id_column}"'
-#     excluded = ', '.join(f'EXCLUDED."{col}"' for col in table.columns)
-#
-#     query = f"""INSERT INTO "{table_name}" ({columns})
-#                 VALUES {values}
-#                 ON CONFLICT ({constraint})
-#                 DO UPDATE SET ({columns}) = ({excluded});"""
-#
-#     query = ' '.join(query.split())
-#     return query
-#
-#
-# def convert_table_schema_to_df(schema):
-#     """Converts a table schema to DataFrame format
-#
-#     :param string schema: PostGreSQL schema
-#     :return pandas.DataFrame: DataFrame with type of each column in schema
-#     """
-#
-#     df = pd.DataFrame(schema.split('(\n')[1].rstrip('\n)').split(','), columns=['var_type'])
-#     df['var'], df['type'] = zip(*df['var_type'].apply(lambda x: x.split(" ")[-2:]))
-#     df.set_index('var', inplace=True)
-#
-#     return df['type'].to_frame()
-#
-#
-# def eval_table_schema(current_schema, new_schema):
-#     """Compares two PostGreSQL schemas. If there are changes from current_schema to new_schema, updates the types of
-#     columns of the current schema to be able to contain the types of the new_schema.
-#     Scale implemented: TEXT > REAL > bigint > INTEGER
-#
-#     :param pandas.DataFrame current_schema: current PostGreSQL table schema
-#     :param pandas.DataFrame new_schema: new PostGreSQL table schema
-#     :return: None or DataFrame with changes in schema to upload
-#     """
-#
-#     casting_order = {'TEXT': 1, 'REAL': 2, 'bigint': 3, 'INTEGER': 4}
-#     reverse_order = {v: k for k, v in casting_order.items()}
-#
-#     if new_schema.equals(current_schema):
-#         return None
-#     else:
-#         _temp = pd.merge(current_schema, new_schema, how='outer', left_index=True, right_index=True,
-#                          suffixes=('_cur', '_new'))
-#         _temp = _temp[_temp['type_cur'] != _temp['type_new']]
-#         _temp[['type_cur', 'type_new']] = _temp[['type_cur', 'type_new']].replace(casting_order)
-#         _temp['type_final'] = _temp[['type_cur', 'type_new']].min(axis=1).astype(int)
-#
-#         if _temp.empty:
-#             return None
-#         else:
-#             _temp['type_final'] = _temp['type_final'].replace(reverse_order)
-#             return _temp['type_final'].to_frame('type')
+    var_types = schema.lower().replace('"', '').split('(\n')[1].rstrip('\n)').split(',')
+    var_types = list(map(lambda x: x.split(' ')[-2:], var_types))
+    return pd.DataFrame.from_records(var_types, columns=['var', 'type']).set_index('var')
+
+
+def _compare_table_schema(current_schema, new_schema):
+    """Compares two PostGreSQL schemas. If there are changes from current_schema to new_schema, updates the types of
+    columns of the current schema to be able to contain the types of the new_schema.
+    Scale implemented: text > real > bigint > integer
+
+    :param pandas.DataFrame current_schema: current PostGreSQL table schema
+    :param pandas.DataFrame new_schema: new PostGreSQL table schema
+    :return: None or DataFrame with changes in schema to upload
+    """
+
+    casting_order = {'text': 1, 'real': 2, 'bigint': 3, 'integer': 4}
+    reverse_order = {v: k for k, v in casting_order.items()}
+    type_map = {0: 'add', 1: 'alter'}
+
+    if new_schema.equals(current_schema):
+        return None
+    else:
+        _temp = pd.concat([current_schema, new_schema], axis=1)
+        _temp.columns = ['cur', 'new']
+
+        _temp = _temp.replace(casting_order)
+        _temp = _temp[(_temp['cur'] > _temp['new']) | (_temp['cur'].isnull())]
+
+        if _temp.empty:
+            return None
+        else:
+            _temp['type'] = (~_temp['cur'].isnull()).astype(int).map(type_map)
+            _temp['result'] = _temp[['cur', 'new']].min(axis=1).astype(int).replace(reverse_order)
+            return _temp[['result', 'type']]

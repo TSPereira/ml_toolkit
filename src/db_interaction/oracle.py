@@ -1,5 +1,4 @@
 import warnings
-from contextlib import contextmanager
 from typing import Optional, Sequence
 
 import cx_Oracle
@@ -41,40 +40,31 @@ class OracleManager(BaseActor):
                 raise KeyError(f'[{self._flavor}] Either "name" or both "host" and "port" need to be provided to '
                                f'establish a connection.')
 
-    @contextmanager
-    def connection_manager(self) -> None:
-        """Creates a connection manager to handle the connection to the oracle database.
-        This will close the connection with need to call 'connection.close()'
+    def _open_connection(self):
+        self._conn = cx_Oracle.connect(f'{self.user}/{self._password}@{self.name}')
+        if self.active_schema is not None:
+            self._conn.current_schema = self.active_schema
 
-        :return: None
-        """
-        if not self._is_connection_open:
-            self._conn = cx_Oracle.connect(f'{self.user}/{self._password}@{self.name}')
-            if self.active_schema is not None:
-                self._conn.current_schema = self.active_schema
-
-            with super().connection_manager():
-                yield
-        else:
-            yield
+        super()._open_connection()
 
     def get_schemas(self):
         return list(self.query('SELECT DISTINCT owner FROM all_tables')['OWNER'])
 
-    def set_active_schema(self, schema: str) -> None:
+    def set_active_schema(self, schema: Optional[str] = None) -> None:
         """Sets the active schema in the database. Any query will be done within the active schema without need
         to specifically identify the schema on the query
 
         :param schema: string name of the schema to set active
         :return:
         """
-        if schema in self.get_schemas():
+        if (schema in self.get_schemas()) or (schema is None):
             super().set_active_schema(schema)
         else:
             warnings.warn(f'\n[{self._flavor}] Passed schema "{schema}" does not exist in database "{self.name}" or '
                           f'current user might not have access privileges to it. Schema was not changed.'
                           f'\nCurrent schema: {self.active_schema}', stacklevel=2)
 
+    # todo change for _update_table_names
     def get_table_names(self) -> list:
         """Lists the tables existing in the active schema. If no active schema is set it will list all tables in
         the database to which the user has access
@@ -88,7 +78,7 @@ class OracleManager(BaseActor):
             return list(schemas_and_tables['OWNER'].str.cat(schemas_and_tables['TABLE_NAME'], sep='.'))
 
     @check_types(table_name=str, limit=(int, NoneType))
-    def get_table(self, table_name: str, limit: Optional[int] = None) -> pd.DataFrame:
+    def read_table(self, table_name: str, limit: Optional[int] = None) -> pd.DataFrame:
         """Extracts a table from the database with table_name. If limit is provided it will only extract a
         specific amount of rows from the top of the database
 
@@ -97,14 +87,14 @@ class OracleManager(BaseActor):
         :return: pandas DataFrame with the query result
         """
         if limit is None:
-            return super().get_table(table_name)
+            return super().read_table(table_name)
 
         else:
             query = f"SELECT * FROM {table_name} WHERE ROWNUM <= {limit}"
             return self.query(query)
 
-    def get_table_in_daterange(self, table_name: str, date_column: str, start_date, end_date,
-                               columns: Optional[Sequence] = None, limit: Optional[int] = None) -> pd.DataFrame:
+    def read_table_in_daterange(self, table_name: str, date_column: str, start_date: str, end_date: str,
+                                columns: Optional[Sequence] = None, limit: Optional[int] = None) -> pd.DataFrame:
         """Extracts columns from table between to dates to be evaluated on a specific column. A limit can be passed,
         If no 'columns' provided it will extract all.
 

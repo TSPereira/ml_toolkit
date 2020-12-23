@@ -1,9 +1,11 @@
 import logging
+from inspect import getfullargspec
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import Optional
 
 import pandas as pd
+from decorator import decorator
 
 
 # noinspection SqlNoDataSourceInspection,SqlDialectInspection
@@ -29,8 +31,7 @@ class BaseActor(ABC):
         self._password = password
         self._connection_test()
 
-        if schema is not None:
-            self.set_active_schema(schema)
+        self.set_active_schema(schema)
 
         self.current_column_types = dict()
         self.tables = None
@@ -43,33 +44,27 @@ class BaseActor(ABC):
             logging.error(f'[{self._flavor}] Cannot open connection to database with parameters passed.')
             raise e
 
-    @abstractmethod
     @contextmanager
     def connection_manager(self) -> None:
         """
         Must be overriden. To retain the current commands after overriding check the example below:
 
-        Example:
-        >>> @contextmanager
-        >>> def _connection_manager():
-        >>>     # Your new instructions, such as opening the connection to the current db flavor
-        >>>     if not self._is_connection_open:
-        >>>         self._conn = db_flavor.connect(**kwargs)
-        >>>
-        >>>         # Call the base class _connection_manager to manage the cursor and connection
-        >>>         with super().connection_manager():
-        >>>             yield
-        >>>
-        >>>     # Any additional commands you might want to run after the connection is closed
         :return:
         """
 
-        # On opening
+        try:
+            self._open_connection()
+            yield
+
+        finally:
+            self._close_connection()
+
+    @abstractmethod
+    def _open_connection(self):
         self._cur = self._conn.cursor()
         self._set_connection_status(open_=True)
-        yield
 
-        # on close
+    def _close_connection(self):
         self._cur.close()
         self._conn.close()
         self._set_connection_status(open_=False)
@@ -83,11 +78,12 @@ class BaseActor(ABC):
         """
         self._is_connection_open = True if open_ else False
 
-    def set_active_schema(self, schema: str) -> None:
+    def set_active_schema(self, schema: Optional[str] = None) -> None:
         self.active_schema = schema
-        logging.info(f'[{self._flavor}] Active schema changed to "{self.active_schema}".')
+        name = f'"{schema}"' if schema is not None else 'None'
+        logging.info(f'[{self._flavor}] Active schema changed to {name}.')
 
-    def action(self, sql: str) -> None:
+    def execute(self, sql: str) -> None:
         """Performs an action in the DataBase
 
         :param string sql: sql query/action to be performed
@@ -98,7 +94,7 @@ class BaseActor(ABC):
             self._cur.execute(sql)
             self._conn.commit()
 
-    def get_table(self, table_name: str) -> pd.DataFrame:
+    def read_table(self, table_name: str) -> pd.DataFrame:
         """Loads table from Database to python environment as pandas.DataFrame
 
         :param string table_name: name of table to load
@@ -118,3 +114,15 @@ class BaseActor(ABC):
         with self.connection_manager():
             table = pd.read_sql(sql, self._conn)
         return table
+
+
+@decorator
+def prepare_table_name(func, *args, **kwargs):
+    dct = dict(zip(getfullargspec(func).args, args))
+    schema = dct['schema'] or dct['self'].active_schema or 'public'
+    dct['table_name'] = join_schema_to_table_name(dct['table_name'], schema)
+    return func(**{**kwargs, **dct})
+
+
+def join_schema_to_table_name(name, schema):
+    return '.'.join(filter(None, (schema, name))) if '.' not in name else name
