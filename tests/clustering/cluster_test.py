@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import MinMaxScaler
 
-from support_toolkit.src.clustering import Cluster, Metrics
+from support_toolkit.ml_toolkit.clustering import Cluster, Metrics
 
 
 if __name__ == '__main__':
