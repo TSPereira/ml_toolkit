@@ -1,4 +1,4 @@
-from support_toolkit.ml_toolkit.db_interaction import PostgreSQLManager
+from ml_toolkit.db_interaction import PostgreSQLManager
 
 
 # todo create proper unittest

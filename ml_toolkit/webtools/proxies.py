@@ -4,6 +4,8 @@ from contextlib import suppress
 
 from proxyscrape import create_collector
 
+from ..utils.log_utl import printv
+
 
 class ProxyManager:
     def __init__(self, protocol='https', anonymity=True, autorefresh=True, max_refresh_tries=5,
@@ -53,11 +55,13 @@ class ProxyManager:
         return proxy
 
     def get_proxy(self, random=False, check_proxy=True):
-        if self.verbose:
-            print('Finding a proxy...')
-
         self._auto_refresh_counter = 0
-        return self._get_proxy(random, check_proxy)
+
+        printv('Finding a proxy...', end=' ', verbose=self.verbose)
+        proxy = self._get_proxy(random, check_proxy)
+        printv(f'({proxy})', end=' ', verbose=self.verbose, level=2)
+        printv('Done.')
+        return proxy
 
     def get_proxy_dict(self, random=False, check_proxy=True):
         return {self.protocol: self.get_proxy(random, check_proxy)}

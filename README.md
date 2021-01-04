@@ -21,3 +21,18 @@ src
 |--utils
 |--webtools
 ```
+
+
+## Installation
+First clone the repository and navigate to it
+```
+git clone https://github.com/TSPereira/ml_toolkit.git
+cd ml_toolkit
+```
+
+Then do one of the following  
+minimum install: `pip install .`  
+all extras: `pip install .[all] -f https://download.pytorch.org/whl/torch_stable.html`  
+specific extra: `pip install .[<extra>]`
+
+Note: to install torch dependancy one needs to had the -f flag as above.
