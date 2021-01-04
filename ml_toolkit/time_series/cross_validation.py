@@ -60,7 +60,7 @@ class TimeSeriesSplit:
                              f'test_size > 0. Try reducing one of the sizes.')
 
         if max_test_size < test_size:
-            warnings.warn(f'Test size allowed ({max_test_size}) is lower that test_size passed ({test_size}).'
+            warnings.warn(f'\nTest size allowed ({max_test_size}) is lower that test_size passed ({test_size}).'
                           f'test_size was updated to maximum allowed.', stacklevel=2)
             test_size = max_test_size
 
@@ -76,7 +76,7 @@ class TimeSeriesSplit:
 
             max_n_splits = int(np.round((1 - (min_train_size + gap + test_size)) / period + 1, 3))
             if max_n_splits < n_splits:
-                warnings.warn(f'Maximum number of splits possible with current ratios is {max_n_splits}. '
+                warnings.warn(f'\nMaximum number of splits possible with current ratios is {max_n_splits}. '
                               f'Output will only consider {max_n_splits} folds.', stacklevel=2)
                 n_splits = max_n_splits
 
@@ -86,20 +86,20 @@ class TimeSeriesSplit:
         min_samples = np.array((self.min_train_size, self.test_size, self.period)) * length
         _check = min_samples if self.n_splits > 1 else min_samples[:2]
         if any(_check < 1):
-            warnings.warn(f'Some ratio(s) requested are smaller than a single sample ({_check[_check < 1]}).'
+            warnings.warn(f'\nSome ratio(s) requested are smaller than a single sample ({_check[_check < 1]}).'
                           f'Ratio(s) will be adjusted to represent a single sample.', stacklevel=2)
         min_samples[:len(_check)] = np.clip(_check, a_min=1, a_max=None)
 
         min_samples = min_samples.astype(int)
         if (min_samples[2] < min_samples[1]) and (self.n_splits > 1):
-            warnings.warn('Period to add at each iteration to trainset is smaller than test_size. This will cause '
+            warnings.warn('\nPeriod to add at each iteration to trainset is smaller than test_size. This will cause '
                           'overlap between testsets on consecutive folds.', stacklevel=2)
 
         self.gap_n_samples = max(1, int(np.round(self.gap * length))) if self.gap > 0 else 0
         initial_train_size = max(int(length - (min_samples[1] + self.gap_n_samples + min_samples[2] *
                                                (self.n_splits - 1))), min_samples[0])
         if initial_train_size < min_samples[0]:
-            warnings.warn(f'Calculated initial_train_size ({initial_train_size}) < min_train_size allowed '
+            warnings.warn(f'\nCalculated initial_train_size ({initial_train_size}) < min_train_size allowed '
                           f'({self.min_train_size}) due to input shape and minimum values for test_size, period '
                           f'and gap', stacklevel=2)
 
@@ -209,6 +209,9 @@ class GroupTimeSeriesSplit(TimeSeriesSplit):
                     if check_percentage:
                         self._check_percentage(len(train), len(test), len(sorted_))
 
+                    if len(test) == 0:
+                        warnings.warn('\nSplit resulted in a 0 length testset.', stacklevel=2)
+
                 yield train, test
 
     def _check_percentage(self, train_size, test_size, initial_size):
@@ -219,6 +222,6 @@ class GroupTimeSeriesSplit(TimeSeriesSplit):
 
         diff = self.train_size - cur_per if self.expanding else abs(self.train_size - cur_per)
         if diff > 0.05:
-            warnings.warn(f'Due to constraints applied, returning split proportion is {round(cur_per, 2)}/'
+            warnings.warn(f'\nDue to constraints applied, returning split proportion is {round(cur_per, 2)}/'
                           f'{round(test_size/initial_size, 2)} instead of {self.train_size}, {self.test_size}.',
                           stacklevel=2)
