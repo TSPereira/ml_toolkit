@@ -1,2 +1,2 @@
-# from . import db_interaction, deep_learning, feature_encoding, time_series, utils, webtools
-
+from .__version__ import __title__, __description__, __url__, __version__, __build__, __author__, \
+    __author_email__, __license__, __copyright__

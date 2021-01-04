@@ -11,14 +11,6 @@ from pkg_resources import parse_requirements
 from shutil import rmtree
 from setuptools import find_packages, setup, Command
 
-# Package meta-data.
-NAME = 'ml_toolkit'
-DESCRIPTION = 'My short description for my project.'
-URL = 'https://github.com/me/myproject'
-EMAIL = 'me@example.com'
-AUTHOR = 'Awesome Soul'
-REQUIRES_PYTHON = '>=3.7.7'
-VERSION = '0.1.0'
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -38,22 +30,20 @@ for extra in extras:
         EXTRAS[extra] = [str(req) for req in parse_requirements(f) if str(req) not in REQUIRED]
 print(EXTRAS)
 
+# load metadata from __version__.py file
+about = {}
+with open(os.path.join(here, 'ml_toolkit', '__version__.py'), 'r') as f:
+    for row in f:
+        key, value = row.split('=')
+        about[key.strip()] = eval(value.strip('\n'))
+
 # Import the README and use it as the long-description.
 # Note: this will only work if 'README.md' is present in your MANIFEST.in file!
 try:
     with io.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
         long_description = '\n' + f.read()
 except FileNotFoundError:
-    long_description = DESCRIPTION
-
-# Load the package's __version__.py module as a dictionary.
-about = {}
-if not VERSION:
-    project_slug = NAME.lower().replace("-", "_").replace(" ", "_")
-    with open(os.path.join(here, project_slug, '__version__.py')) as f:
-        exec(f.read(), about)
-else:
-    about['__version__'] = VERSION
+    long_description = about['__description__']
 
 
 class UploadCommand(Command):
@@ -95,15 +85,15 @@ class UploadCommand(Command):
 
 # Where the magic happens:
 setup(
-    name=NAME,
+    name=about['__title__'],
     version=about['__version__'],
-    description=DESCRIPTION,
+    description=about['__description__'],
     long_description=long_description,
     long_description_content_type='text/markdown',
-    author=AUTHOR,
-    author_email=EMAIL,
-    python_requires=REQUIRES_PYTHON,
-    url=URL,
+    author=about['__author__'],
+    author_email=about['__author_email__'],
+    python_requires='>=3.7.7',
+    url=about['__url__'],
     packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
     # If your package is a single module, use this instead of 'packages':
     # py_modules=['mypackage'],
@@ -114,7 +104,7 @@ setup(
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
-    license='MIT',
+    license=about['__license__'],
     classifiers=[
         # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
