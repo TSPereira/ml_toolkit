@@ -52,7 +52,7 @@ class Encoder(EncoderMixin):
         self.encoder = None
         self.encoder_y = None
         self.input_features = None
-        self.input_index = None
+        self._input_index = None
         self.feature_types = dict()
         self.fitted = False
         self.weights = weights or {}
@@ -145,7 +145,7 @@ class Encoder(EncoderMixin):
 
         if fit:
             self.input_features = features
-            self.input_index = arr.index
+            self._input_index = arr.index
 
         return arr[features].copy(), features, arr.index
 
