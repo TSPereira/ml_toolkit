@@ -33,6 +33,7 @@ cd ml_toolkit
 Then do one of the following  
 `pip install .`  (minimum installation)  
 `pip install .[all] -f https://download.pytorch.org/whl/torch_stable.html`  (all extras)  
+`pip install .[deep_learning] -f https://download.pytorch.org/whl/torch_stable.html`    
 `pip install .[<extra>]`  (specific extra)
 
 Note: to install torch dependency one needs to add the -f flag as above.

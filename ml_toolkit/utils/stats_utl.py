@@ -2,7 +2,9 @@ import numpy as np
 import warnings
 from typing import Union
 
-from .os_utl import check_types
+import scipy.stats as st
+
+from .os_utl import check_types, check_interval
 
 
 # todo update type hints and docstrings
@@ -73,3 +75,19 @@ def std_sparse(a: np.ndarray, axis: int = None) -> Union[np.ndarray, float]:
     std = sqrt(var(a))
     """
     return np.sqrt(var_sparse(a, axis))
+
+
+@check_types(confidence=float)
+@check_interval('confidence', 0, 1)
+def get_confidence_interval(y: np.ndarray, confidence: float = 0.95):
+    """Compute the confidence interval for an array
+
+    :param y: array-like object with values to compute from
+    :param confidence: percentage of confidence to use
+    :return: mean, lbound, ubound
+    """
+
+    y_mean = np.mean(y)
+    z_score = st.norm.ppf((1 + confidence) / 2)
+    ci = z_score * np.std(y) / y_mean
+    return y_mean, y_mean-ci, y_mean+ci

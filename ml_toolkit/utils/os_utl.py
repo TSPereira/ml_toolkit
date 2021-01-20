@@ -3,13 +3,13 @@ import shutil
 import math
 from inspect import signature
 from uuid import UUID, uuid4
-from typing import Tuple, Iterable, Callable
+from typing import Tuple, Iterable, Callable, Sequence, Any, Optional, Union
 
 from decorator import decorator
 NoneType = type(None)
 
 
-def check_types(**types):
+def check_types(**types: Union[type, Sequence]) -> Callable:
     """Decorator to check types of arguments for function
 
     :param types: named variables and types to check against. Multiple types for a variable can be passed as tuples
@@ -37,8 +37,8 @@ def check_types(**types):
         for var in set(_vars.keys()).intersection(types.keys()):
             # noinspection PyTypeHints
             if not isinstance(_vars[var], types[var]):
-                _names = types[var].__name__ if not isinstance(types[var], Iterable) \
-                    else tuple(t.__name__ for t in types[var])
+                _names = get_type_name(types[var]) if not isinstance(types[var], Iterable) \
+                    else tuple(get_type_name(t) for t in types[var])
                 raise TypeError(f'variable {var} must be of type(s): {_names}.')
 
         return f(*args, **kwds)
@@ -46,7 +46,11 @@ def check_types(**types):
     return _check
 
 
-def check_options(**options):
+def get_type_name(t: Any) -> str:
+    return getattr(t, '__name__', getattr(t, '_name', str(t)))
+
+
+def check_options(**options: Sequence) -> Callable:
     """Decorator to check the arguments for function against a pool of options per argument
 
     :param options: named variables and options to check against. Options for each argument should be a single iterable.
@@ -68,6 +72,51 @@ def check_options(**options):
                 f'variable {var} must be one of {options[var]}.'
 
         return f(*args, **kwds)
+
+    return _check
+
+
+@check_options(closed=('min', 'max', 'both', None))
+@check_types(min_value=(float, int, NoneType), max_value=(float, int, NoneType))
+def check_interval(items: Union[str, Sequence], min_value: Optional[Union[int, float]] = None,
+                   max_value: Optional[Union[int, float]] = None, closed: Optional[str] = None) -> Callable:
+    """Decorator to check if arguments are inside of a given interval
+
+    :param items: One or more variables of the function to be checked
+    :param min_value: minimum value of the interval
+    :param max_value: maximum value of the interval
+    :param closed: Whether the interval should be considered to be closed on the "min" side, "max" side, "both" sides
+     or fully open (None).
+    :return: function
+    """
+
+    items = items if isinstance(items, Sequence) else [items]
+
+    def gen_ans(name):
+        prefix = f'Variable "{name}" must be'
+        left_sign = '<=' if closed in ('min', 'both') else '<'
+        right_sign = '<=' if closed in ('max', 'both') else '<'
+
+        if (min_value is not None) and (max_value is not None):
+            return f'{prefix} between {min_value} {left_sign} {name} {right_sign} {max_value}.'
+
+        elif max_value is not None:
+            return f'{prefix} {right_sign} {max_value}'
+
+        else:
+            left_sign = f'>{left_sign[1:]}'
+            return f'{prefix} {left_sign} {min_value}'
+
+    @decorator
+    def _check(f, *args, **kwargs):
+        _vars = {**dict(zip(f.__code__.co_varnames, args)), **kwargs}
+        for var in set(_vars.keys()).intersection(items):
+            x = _vars[var]
+            low = True if min_value is None else (x >= min_value if closed in ('min', 'both') else x > min_value)
+            high = True if max_value is None else (x <= max_value if closed in ('max', 'both') else x < max_value)
+            assert low & high, gen_ans(var)
+
+        return f(*args, **kwargs)
 
     return _check
 
