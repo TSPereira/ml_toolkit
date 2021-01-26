@@ -22,7 +22,7 @@ print(REQUIRED)
 # What packages are optional?
 EXTRAS = {}  # 'fancy feature': ['django']
 extras = ['all', 'clustering', 'db_interaction', 'deep_learning', 'feature_encoding', 'time_series',
-          'webtools']
+          'webtools']  # todo walk through folders and add the 'all'
 for extra in extras:
     rel_path = 'ml_toolkit/requirements.txt' if extra == 'all' else f'ml_toolkit/{extra}/requirements.txt'
     path = os.path.join(here, rel_path)

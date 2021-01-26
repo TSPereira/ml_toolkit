@@ -492,11 +492,11 @@ class WeightedEstimator:
 
         return _est, nr_votes
 
-    def plot_metrics(self, n_votes=3):
+    def plot_metrics(self, n_votes=3, figsize=(24, 12)):
         normalise = True  # todo add separate plots if normalise == False
 
         import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(figsize=(24, 12))
+        fig, ax = plt.subplots(figsize=figsize)
 
         for est in self.estimators:
             est.plot_metric(ax, show=False, normalise=normalise, n_votes=n_votes)
