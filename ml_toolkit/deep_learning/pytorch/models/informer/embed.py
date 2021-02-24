@@ -63,7 +63,7 @@ class FixedEmbedding(nn.Module):
 
 
 class TemporalEmbedding(nn.Module):
-    _tick_sizes = dict(m=12, w=53, d=31, wd=7, H=24, M=60, S=60)
+    _tick_sizes = dict(m=13, w=54, d=32, wd=7, H=24, M=60, S=60)
     _time_tick_map = dict(S=0, M=1, H=2, d=3, w=4, m=5)
 
     @check_types(minute_window=int)

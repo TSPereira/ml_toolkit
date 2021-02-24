@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from ml_toolkit.deep_learning.pytorch.tools import TriangularCausalMask, ProbMask
+from ...tools import TriangularCausalMask, ProbMask
 
 
 class FullAttention(nn.Module):

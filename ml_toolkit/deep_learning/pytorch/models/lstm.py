@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 from torch.utils.data import TensorDataset, Dataset
 
-from .engine import Engine, check_data_types
+from .core import Engine, check_data_types
 from ....utils.os_utl import check_types, check_interval
 from ....utils.log_utl import wrap_text
 

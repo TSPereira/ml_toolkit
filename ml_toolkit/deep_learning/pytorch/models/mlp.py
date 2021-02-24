@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset
 
-from .engine import Engine, check_data_types
+from .core import Engine, check_data_types
 from .utils import check_non_linearity
 from ....utils.os_utl import check_types, check_interval, NoneType
 

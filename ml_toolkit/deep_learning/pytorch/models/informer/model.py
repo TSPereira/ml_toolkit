@@ -8,7 +8,7 @@ from .attn import FullAttention, ProbAttention, AttentionLayer
 from .embed import DataEmbedding, TokenEmbedding
 from .dataset import InformerTemporalDataset
 
-from ..engine import Engine
+from ..core import Engine
 from .....utils.os_utl import check_options, check_types
 
 
@@ -54,11 +54,11 @@ class Informer(Engine):
         # self.end_conv1 = nn.Conv1d(in_channels=label_len+out_len, out_channels=out_len, kernel_size=1, bias=True)
         # self.end_conv2 = nn.Conv1d(in_channels=d_model, out_channels=c_out, kernel_size=1, bias=True)
         self.projection = nn.Linear(d_model, c_out, bias=True)
+        self.double()
 
-    @staticmethod
-    def _initialize_weights(mod):
-        if not isinstance(mod, TokenEmbedding):
-            super()._initialize_weights(mod)
+    def _init_weights(self, mod):
+        if not isinstance(mod, (TokenEmbedding, nn.LayerNorm, nn.BatchNorm1d)):
+            super(Informer, self)._init_weights(mod)
 
     # noinspection PyMethodOverriding
     @check_types(dataset=DataFrame)
@@ -78,7 +78,12 @@ class Informer(Engine):
         super().create_dataloader(dataset, val_size, batch_size, shuffle, random_split=False, **kwargs)
 
     def forward(self, x_enc, x_dec, x_mark_enc, x_mark_dec):
-        # todo receive outputs of data loader and do everything here
+        # convert everything to double
+        x_enc = x_enc.double()
+        x_dec = x_dec.double()
+        x_mark_enc = x_mark_enc.double()
+        x_mark_dec = x_mark_dec.double()
+
         enc_out = self.enc_embedding(x_enc, x_mark_enc)
         enc_out = self.encoder(enc_out, attn_mask=self.enc_self_mask)
 
