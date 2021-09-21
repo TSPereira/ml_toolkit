@@ -71,7 +71,7 @@ class Informer(Engine):
                            f'({self.projection.out_features}).')
 
         if not all(x in dataset.columns for x in target):
-            raise KeyError(f'Not all "target"s passed are in the dataframe provided.')
+            raise KeyError('Not all "target"s passed are in the dataframe provided.')
 
         dataset = InformerTemporalDataset(dataset, self.enc_seq_len, self.dec_seq_len, self.pred_len, target,
                                           self._time_tick, scale)
