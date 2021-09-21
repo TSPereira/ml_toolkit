@@ -78,7 +78,6 @@ class Engine(nn.Module):
         self.train_loader = DataLoader(dataset=trainset, batch_size=batch_size[0], shuffle=shuffle, **kwargs)
         self.validation_loader = DataLoader(dataset=valset, batch_size=batch_size[1], shuffle=shuffle, **kwargs)
 
-    @check_options(device=('cpu', 'cuda', 'auto'))
     @check_types(device=str)
     def set_device(self, device='auto'):
         if device == 'auto':
