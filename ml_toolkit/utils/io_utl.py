@@ -1,3 +1,5 @@
+import ast
+import inspect
 import json
 from datetime import datetime
 
@@ -150,3 +152,32 @@ class datetime(datetime):
         dt = super().__add__(other)
         return datetime(year=dt.year, month=dt.month, day=dt.day, hour=dt.hour, minute=dt.minute,
                         second=dt.second, microsecond=dt.microsecond, tzinfo=dt.tzinfo, fold=dt.fold)
+
+
+# ============================================ FUNCTIONS =====================================================
+def get_decorators(cls: type) -> dict:
+    """Find which decorators are registered for each method in a class or for a function
+
+    Args:
+        cls: class or function
+
+    Returns:
+        dict: Dictionary with format {method_name: [decorators]}
+
+    """
+    target = cls
+    decorators = {}
+
+    def visit_function_def(node):
+        decorators[node.name] = []
+        for n in node.decorator_list:
+            if isinstance(n, ast.Call):
+                name = n.func.attr if isinstance(n.func, ast.Attribute) else n.func.id
+            else:
+                name = n.attr if isinstance(n, ast.Attribute) else n.id
+            decorators[node.name].append(name)
+
+    node_iter = ast.NodeVisitor()
+    node_iter.visit_FunctionDef = visit_function_def
+    node_iter.visit(ast.parse(inspect.getsource(target)))
+    return decorators
