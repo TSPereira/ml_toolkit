@@ -18,7 +18,7 @@ class Informer(Engine):
                  e_layers=3, d_layers=2, d_ff=512, dropout=0.0, attn='prob', embed='fixed', time_tick='M',
                  activation='gelu', enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None,
                  device=torch.device('cuda:0')):
-        super(Informer, self).__init__()
+        super(Informer, self).__init__(device)
         self.enc_seq_len = seq_len
         self.dec_seq_len = label_len
         self.pred_len = out_len
