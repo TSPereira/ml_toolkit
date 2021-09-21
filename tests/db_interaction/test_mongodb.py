@@ -44,7 +44,7 @@ class ConnectionCase(unittest.TestCase):
 
     def test_connection_fail(self):
         cfg = CFG.copy()
-        cfg['hostname'] = 'lskdjfl'
+        cfg['host'] = 'lskdjfl'
         cfg['serverSelectionTimeoutMS'] = 2000
 
         db = open_db(cfg)

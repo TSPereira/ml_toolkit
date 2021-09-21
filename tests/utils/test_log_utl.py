@@ -200,26 +200,26 @@ class MonitorTestCase(unittest.TestCase):
         # test with StringIO
         m = monitor(logger=StringIO())
         self.assertIsInstance(m.logger, logging.Logger)
-        self.assertEqual(m.logger.name, 'sia_utilities.log_utl.monitor')
+        self.assertEqual(m.logger.name, 'ml_toolkit.utils.log_utl.monitor')
         self.assertIsInstance(m.logger.handlers[0], logging.StreamHandler)
 
         # test with stdout
         m = monitor(logger=sys.stdout)
         self.assertIsInstance(m.logger, logging.Logger)
-        self.assertEqual(m.logger.name, 'sia_utilities.log_utl.monitor')
+        self.assertEqual(m.logger.name, 'ml_toolkit.utils.log_utl.monitor')
         self.assertIsInstance(m.logger.handlers[0], logging.StreamHandler)
 
         # test with file
         m = monitor(logger='test.log')
         self.assertIsInstance(m.logger, logging.Logger)
-        self.assertEqual(m.logger.name, 'sia_utilities.log_utl.monitor')
+        self.assertEqual(m.logger.name, 'ml_toolkit.utils.log_utl.monitor')
         self.assertIsInstance(m.logger.handlers[0], logging.FileHandler)
         m.logger.handlers[0].close()
 
         with open('test.log', 'w') as f:
             m = monitor(logger=f)
             self.assertIsInstance(m.logger, logging.Logger)
-            self.assertEqual(m.logger.name, 'sia_utilities.log_utl.monitor')
+            self.assertEqual(m.logger.name, 'ml_toolkit.utils.log_utl.monitor')
             self.assertIsInstance(m.logger.handlers[0], logging.StreamHandler)
         os.remove('test.log')
 
