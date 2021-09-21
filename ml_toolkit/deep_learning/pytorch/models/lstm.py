@@ -12,6 +12,7 @@ from ....utils.os_utl import check_types, check_interval
 from ....utils.log_utl import wrap_text
 
 
+# TODO: WIP
 # lstm args:
 #     input_size, hidden_size, num_layers, bias, batch_first, dropout, bidirectional, non_linearity
 #

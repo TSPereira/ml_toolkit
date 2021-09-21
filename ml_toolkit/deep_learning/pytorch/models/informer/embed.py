@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 
 from .....utils.os_utl import check_options, check_types
-# from utils.os_utl import check_options, check_types
 
 
 class PositionalEmbedding(nn.Module):
