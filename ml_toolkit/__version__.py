@@ -1,8 +1,7 @@
 __title__ = 'ml_toolkit'
 __description__ = 'Support toolkit for ML development.'
 __url__ = 'https://github.com/TSPereira/ml_toolkit'
-__version__ = '0.2.0'
-__build__ = 0x000100
+__version__ = '0.2.1'
 __author__ = 'Tiago Pereira'
 __author_email__ = 'tiagosousapereira@outlook.com'
 __license__ = 'MIT'
